@@ -163,6 +163,6 @@ message_rules:
     - verifiable
     - tied to a concrete business trigger
   call_to_action_examples:
-    - "Tiene sentido que te comparta 2-3 hipótesis brevemente?"
+    - "Creo que podría haber 2-3 ideas aplicables a [Empresa]."
+    - "Tiene sentido que te las comparta brevemente?"
     - "Te parece si te mando 2 ideas concretas para revisarlas?"
-    - "Tiene sentido que lo aterrice en 2-3 hipótesis para tu operación?"

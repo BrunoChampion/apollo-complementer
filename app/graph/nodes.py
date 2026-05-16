@@ -65,9 +65,10 @@ class DeterministicDraftLLM:
             "En empresas B2B con ese tipo de operación suele aparecer una fricción: "
             f"{friction}.\n\n"
             "Desde NYVEX trabajé recientemente en un sistema de IA/RAG para una empresa "
-            "B2B de HR software, enfocado en convertir conocimiento disperso en flujos "
+            "B2B de HR software, enfocado justamente en convertir conocimiento disperso en flujos "
             "operativos reales.\n\n"
-            "¿Tiene sentido que te comparta 2-3 hipótesis brevemente?"
+            f"Creo que podría haber 2-3 ideas aplicables a {lead.company_name}.\n\n"
+            "¿Tiene sentido que te las comparta brevemente?"
         )
         words = body.split()
         if len(words) > max_words:

@@ -67,7 +67,8 @@ def test_tone_checker_passes_specific_spanish_copy() -> None:
     result = tone_checker(
         _state(
             "Hola Ana, vi que Acme usa HubSpot. "
-            "Tiene sentido que te comparta 2-3 hipótesis brevemente?"
+            "Creo que podría haber 2-3 ideas aplicables a Acme. "
+            "Tiene sentido que te las comparta brevemente?"
         )
     )
 
@@ -78,7 +79,8 @@ def test_verify_claims_allows_hypothesis_cta_number() -> None:
     result = verify_claims_against_evidence(
         _state(
             "Hola Ana, vi que Acme uses HubSpot on its website. "
-            "Tiene sentido que te comparta 2-3 hipótesis brevemente?"
+            "Creo que podría haber 2-3 ideas aplicables a Acme. "
+            "Tiene sentido que te las comparta brevemente?"
         )
     )
 
@@ -91,7 +93,8 @@ def test_verify_claims_allows_nyvex_credibility_line() -> None:
             "Hola Ana, vi que Acme uses HubSpot on its website. "
             "Desde NYVEX trabajé recientemente en un sistema de IA/RAG para una "
             "empresa B2B de HR software. "
-            "Tiene sentido que te comparta 2-3 hipótesis brevemente?"
+            "Creo que podría haber 2-3 ideas aplicables a Acme. "
+            "Tiene sentido que te las comparta brevemente?"
         )
     )
 
