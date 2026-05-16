@@ -1,0 +1,168 @@
+company:
+  name: "NYVEX"
+  description: "AI implementation agency helping B2B SMBs reduce expensive manual operations with AI agents, RAG systems, and internal automations that remain practical to operate."
+  website: null
+
+icp:
+  company_size: "10-200 employees; sweet spot 15-100. 10-19 only with budget, growth, funding, accelerator, B2B complexity, or clear operational pain. Over 200 only with a strong startup/scaleup exception."
+  regions:
+    - Argentina
+    - Colombia
+    - Mexico
+    - Chile
+    - Peru
+    - LATAM secondary markets
+  industries:
+    - SaaS B2B
+    - Fintech
+    - B2B technology startups
+    - software platforms
+    - technology consulting
+    - AI and automation consulting
+    - cybersecurity
+    - ERP implementation
+    - digital agencies with B2B operations
+    - professional services with consultative B2B sales
+    - B2B services with operational complexity
+    - any B2B company with clear operational complexity, budget signal, and a practical AI or automation use case
+  exclusions:
+    - companies with no B2B sales motion
+    - microbusinesses under 10 employees
+    - companies over 200 employees unless there is a strong startup, scaleup, accelerator, or operational-pain signal
+    - companies under 10 employees unless there is unusually clear B2B budget and operational complexity
+    - companies under 15 employees without funding, accelerator backing, visible budget signal, or urgent operational pain
+    - companies seeking fully automated spam campaigns
+    - prospects with no active role or no visible employment
+
+buyer_personas:
+  - title_patterns:
+      - CEO
+      - Founder
+      - Co-Founder
+      - Managing Partner
+    priorities:
+      - revenue growth
+      - operational leverage
+      - predictable pipeline
+      - evaluating tools in a new role
+    tone: "strategic, concise, peer-to-peer"
+  - title_patterns:
+      - COO
+      - Head of Operations
+      - Director of Operations
+      - Operations Manager
+    priorities:
+      - reducing payroll waste caused by manual work
+      - reducing support or operations workload
+      - process reliability
+      - internal automation with clear ownership
+    tone: "operational, concrete, focused on time and cost"
+  - title_patterns:
+      - CTO
+      - VP Engineering
+      - VP Product
+      - Head of Technology
+      - Director of IT
+    priorities:
+      - operational efficiency
+      - AI adoption without chaos
+      - team scalability
+      - reducing manual process load
+    tone: "technical enough, practical, low hype"
+  - title_patterns:
+      - Head of Sales
+      - Commercial Manager
+      - Sales Director
+      - Head of Customer Success
+      - Director of Support
+      - Customer Support Manager
+      - Product Manager
+    priorities:
+      - qualified meetings
+      - follow-up consistency
+      - sales productivity
+      - reducing support workload
+      - better process visibility
+    tone: "practical, metric-oriented, only if the role has real influence"
+
+value_props:
+  - id: "agentic_rag_support_cost"
+    pain: "support and operations teams spend too much salary cost and time answering repetitive or knowledge-heavy requests"
+    outcome: "reduce manual support load with a self-hosted agentic RAG workflow that handles ingestion, retrieval, and assisted responses"
+    proof: "NYVEX delivered a USD 7k agentic RAG system in n8n, self-hosted on a VPS, with multiple ingestion and retrieval flows"
+  - id: "internal_ai_automation"
+    pain: "manual internal processes create bottlenecks, inconsistent execution, and avoidable headcount pressure"
+    outcome: "automate a narrow internal workflow with AI agents while keeping review, ownership, and operational control clear"
+    proof: "NYVEX focuses on practical AI agents, RAG, and internal automations instead of broad AI consulting"
+  - id: "self_hosted_control"
+    pain: "teams want AI leverage but need control over data, infrastructure, and reliability"
+    outcome: "build AI workflows that can run on controlled infrastructure such as VPS-based self-hosted stacks"
+    proof: "the first paid NYVEX implementation was self-hosted rather than a purely cloud-managed prototype"
+
+case_studies:
+  - id: "case_001"
+    title: "Self-hosted agentic RAG system in n8n"
+    summary: "Built multiple n8n flows for ingestion and retrieval in an agentic RAG system, self-hosted on a VPS for a B2B HR SaaS in Argentina."
+    result: "USD 7k project, 4-month implementation"
+    use_when:
+      - "prospect asks for implementation credibility"
+      - "AI agents, RAG, or internal automation relevance is high"
+      - "account has operational complexity or knowledge retrieval needs"
+      - "support or operations cost is a visible pain"
+
+objections:
+  - objection: "We already use a CRM"
+    response: "This does not replace the CRM; it improves research, prioritization, and draft creation around it."
+  - objection: "We do not want spam"
+    response: "The system creates drafts for human review and does not auto-send emails."
+  - objection: "We are not ready for a big AI project"
+    response: "NYVEX should position a narrow workflow first: one process, one measurable pain, human review, and a small implementation path."
+  - objection: "We only want to explore AI later"
+    response: "Anchor the conversation in a current trigger, such as new role, hiring, expansion, operational bottleneck, or a recent post about AI/processes."
+  - objection: "Our sector is not HR or SaaS"
+    response: "Sector is secondary. NYVEX is relevant when the company is B2B, has budget signals, manual operational load, and a concrete use case for AI agents, RAG, or internal automation."
+
+workflow_rules:
+  required_before_enrichment:
+    - "company_linkedin_url from Apollo/export"
+    - "prospect_linkedin_url from Apollo/export"
+    - "manual_company_linkedin_text pasted by the user from the exported company's LinkedIn profile"
+    - "manual_person_linkedin_text pasted by the user from the exported person's LinkedIn profile"
+  evidence_rules:
+    - "Do not assume identity from similar names; if LinkedIn text and exported Apollo record conflict, block enrichment."
+    - "Unknown headcount, B2B fit, role authority, or budget must remain unknown; do not infer from vibes."
+    - "Drafts require enrichment_result.recommended_action=draft, sufficient evidence, and the LinkedIn/ICP readiness gate."
+    - "Drafts require one concrete operational signal tied to support, onboarding, implementation, documentation, integrations, customer operations, or another real friction."
+    - "Do not diagnose the prospect directly; frame pain as a common friction in similar B2B operations."
+
+message_rules:
+  max_words_email: 120
+  max_words_linkedin: 55
+  avoid_phrases:
+    - "Espero que estes bien"
+    - "revolucionar tu negocio"
+    - "desbloquear el poder de la IA"
+    - "solucion integral"
+    - "sinergia"
+    - "seria valioso conectar"
+    - "me parece interesante tu perfil"
+    - "Gran post"
+    - "Muy interesante"
+    - "Totalmente de acuerdo"
+    - "podría estar atravesando"
+    - "podrian estar atravesando"
+    - "ya hemos logrado solucionar"
+    - "hemos logrado solucionar"
+    - "conversar 15 minutos"
+    - "tiene señales de"
+  required_traits:
+    - concise
+    - specific
+    - human
+    - low hype
+    - verifiable
+    - tied to a concrete business trigger
+  call_to_action_examples:
+    - "Tiene sentido que te comparta 2-3 hipótesis brevemente?"
+    - "Te parece si te mando 2 ideas concretas para revisarlas?"
+    - "Tiene sentido que lo aterrice en 2-3 hipótesis para tu operación?"

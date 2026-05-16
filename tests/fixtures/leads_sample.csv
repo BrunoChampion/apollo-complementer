@@ -1,0 +1,8 @@
+lead_id,company_name,company_website,prospect_name,prospect_title,prospect_email,country,industry,source,manual_context,action,status,approved,email_draft,revised_draft,final_message,revision_instruction,revision_instruction_hash,last_processed_revision_hash,agent_note
+lead_good_001,Andes ERP Partners,https://andeserp.example.com,Camila Rojas,Founder,camila@andeserp.example.com,Peru,ERP implementation,manual,"Consultora B2B de implementacion ERP.",research_and_draft,new,false,,,,,,,
+lead_processing_001,Nova Cyber Advisors,https://novacyber.example.com,Martin Silva,Sales Director,martin@novacyber.example.com,Colombia,Cybersecurity,manual,"Ya esta bloqueada por otro run.",research_and_draft,processing,false,,,,,,,
+lead_revision_new_001,Pacific Data Co,https://pacificdata.example.com,Ana Ruiz,Commercial Manager,ana@pacificdata.example.com,Chile,B2B data,manual,"Draft requiere ajuste.",revise,drafted,false,"Draft anterior.",,,"Hazlo mas corto.",hash_new,hash_old,
+lead_revision_same_001,Lima Cloud,https://limacloud.example.com,Diego Leon,Head of Sales,diego@limacloud.example.com,Peru,Cloud services,manual,"Revision ya procesada.",revise,revised,false,"Draft anterior.",,,"Hazlo mas corto.",hash_same,hash_same,
+lead_gmail_001,OpsBridge,https://opsbridge.example.com,Sofia Nunez,Founder,sofia@opsbridge.example.com,Mexico,B2B services,manual,"Aprobado para draft Gmail.",create_gmail_draft,approved,true,"Draft aprobado.",,Final aprobado.,,,,
+lead_skip_001,Local Shop,,Luis Perez,Owner,luis@localshop.example.com,Peru,Retail,manual,"No procesar.",skip,new,false,,,,,,,
+lead_invalid_001,,https://broken.example.com,Ana Torres,Commercial Manager,ana@broken.example.com,Chile,B2B services,manual,"Fila invalida.",research_and_draft,new,false,,,,,,,

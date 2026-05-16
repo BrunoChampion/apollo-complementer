@@ -1,0 +1,6 @@
+lead_id,company_name,company_website,prospect_name,prospect_title,prospect_email,country,industry,source,manual_context,action,status,approved,locked_at
+lead_batch_001,Company 1,https://company1.example.com,Ana Ruiz,Founder,ana1@example.com,Peru,B2B services,manual,Context 1,research_and_draft,new,false,
+lead_batch_002,Company 2,https://company2.example.com,Ana Ruiz,Founder,ana2@example.com,Peru,B2B services,manual,Context 2,research_and_draft,new,false,
+lead_batch_003,Company 3,https://company3.example.com,Ana Ruiz,Founder,ana3@example.com,Peru,B2B services,manual,Context 3,research_and_draft,new,false,
+lead_batch_004,Company 4,https://company4.example.com,Ana Ruiz,Founder,ana4@example.com,Peru,B2B services,manual,Context 4,research_and_draft,new,false,
+lead_batch_005,Company 5,https://company5.example.com,Ana Ruiz,Founder,ana5@example.com,Peru,B2B services,manual,Context 5,research_and_draft,new,false,

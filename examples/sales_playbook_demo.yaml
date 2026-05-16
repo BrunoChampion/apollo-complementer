@@ -1,0 +1,52 @@
+company:
+  name: "Revenue Ops Copilot Demo"
+  description: "AI implementation studio helping B2B SMBs improve outbound research, prioritization and draft quality without unsafe automation."
+  website: "https://example.com"
+
+icp:
+  company_size: "20-200 employees"
+  regions:
+    - Peru
+    - Chile
+    - Colombia
+    - Mexico
+  industries:
+    - B2B services
+    - technology consulting
+    - cybersecurity
+    - ERP implementation
+  exclusions:
+    - companies with no B2B sales motion
+    - microbusinesses under 10 employees
+
+buyer_personas:
+  - title_patterns:
+      - CEO
+      - Founder
+      - Head of Sales
+    priorities:
+      - predictable pipeline
+      - better prospect research
+      - follow-up consistency
+    tone: "concise, practical, low hype"
+
+value_props:
+  - id: "research_speed"
+    pain: "manual prospect research consumes too much time"
+    outcome: "reduce research time while improving relevance"
+    proof: "the workflow creates evidence-backed drafts for human review"
+
+message_rules:
+  max_words_email: 120
+  max_words_linkedin: 80
+  avoid_phrases:
+    - "Espero que estes bien"
+    - "revolucionar tu negocio"
+    - "desbloquear el poder de la IA"
+  required_traits:
+    - concise
+    - specific
+    - human
+    - low hype
+  call_to_action_examples:
+    - "Tiene sentido conversar 15 minutos?"

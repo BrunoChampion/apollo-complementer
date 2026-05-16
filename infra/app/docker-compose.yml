@@ -1,0 +1,23 @@
+services:
+  revenue-ops-postgres:
+    image: docker.io/postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${APP_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${APP_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${APP_POSTGRES_DB}
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "127.0.0.1:${APP_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - revenue_ops_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_POSTGRES_USER} -d ${APP_POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  revenue_ops_postgres_data:
+    driver: local

@@ -1,0 +1,11 @@
+Preguntas clave:
+
+¿Qué procesos manuales les comen más tiempo?
+¿Dónde se les va más sueldo operativo?
+¿Qué intentaron automatizar y falló?
+¿Qué datos/documentos usan todo el tiempo?
+¿Dónde responder mejor o más rápido impacta dinero?
+¿Quién tendría que aprobar un proyecto así?
+¿Qué presupuesto sería razonable?
+¿Qué les daría miedo de un agente/RAG?
+¿Qué resultado justificaría pagar USD 5k-10k?

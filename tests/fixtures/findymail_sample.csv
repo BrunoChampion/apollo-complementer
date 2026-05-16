@@ -1,0 +1,4 @@
+Email,First Name,Last Name,Title,Company,Website,LinkedIn,Industry,Employees,Country
+juan@acme.com,Juan,Perez,CEO,Acme Inc,https://acme.com,https://linkedin.com/in/juanperez,SaaS,50,Argentina
+maria@cloudops.io,Maria,Gomez,CTO,CloudOps,https://cloudops.io,https://linkedin.com/in/mariagomez,Cloud,120,Colombia
+carlos@datalabs.mx,Carlos,Ruiz,Head of Operations,DataLabs,https://datalabs.mx,https://linkedin.com/in/carlosruiz,AI,30,Mexico

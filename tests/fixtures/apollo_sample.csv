@@ -1,0 +1,4 @@
+First Name,Last Name,Title,Email,Company,Company Website,Company LinkedIn Url,Person LinkedIn Url,Country,Industry,Employees,City,Headline,Company Description
+Juan,Perez,CEO,juan@acme.com,Acme Inc,https://acme.com,https://linkedin.com/company/acme,https://linkedin.com/in/juanperez,Argentina,SaaS,50,Buenos Aires,CEO at Acme,Leading SaaS platform
+Maria,Gomez,CTO,maria@cloudops.io,CloudOps,https://cloudops.io,https://linkedin.com/company/cloudops,https://linkedin.com/in/mariagomez,Colombia,Cloud,120,Bogota,CTO at CloudOps,Cloud infrastructure provider
+Carlos,Ruiz,Head of Operations,carlos@datalabs.mx,DataLabs,https://datalabs.mx,https://linkedin.com/company/datalabs,https://linkedin.com/in/carlosruiz,Mexico,AI,30,Ciudad de Mexico,Operations at DataLabs,AI solutions for enterprises

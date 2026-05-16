@@ -1,0 +1,4 @@
+lead_id,company_name,company_website,prospect_name,prospect_title,prospect_email,country,manual_context,action,status,approved,export_ready,email_subject,email_draft,revised_draft,final_subject,final_message,message_angle,evidence_quality
+lead_export_001,Andes ERP Partners,https://andeserp.example.com,Camila Rojas,Founder,camila@andeserp.example.com,Peru,"Consultora B2B de implementacion ERP.",export,approved,true,false,Idea original,Draft original,,Asunto final,Mensaje final,research speed,manual context
+lead_export_002,Nova Cyber Advisors,https://novacyber.example.com,Martin Silva,Sales Director,martin@novacyber.example.com,Colombia,"Firma de ciberseguridad.",export,drafted,false,true,Idea cyber,Draft cyber,Revised cyber,,,follow-up consistency,manual context
+lead_not_ready_001,Local Shop,,Luis Perez,Owner,luis@localshop.example.com,Peru,"No exportar.",export,new,false,false,Idea,Draft,,,,,

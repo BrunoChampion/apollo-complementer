@@ -1,0 +1,7 @@
+company:
+  name: "Broken"
+  description: "Missing required commercial context."
+icp:
+  company_size: "20-200 employees"
+buyer_personas: []
+value_props: []

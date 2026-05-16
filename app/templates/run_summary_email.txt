@@ -1,0 +1,19 @@
+Revenue Copilot run completed
+
+Run ID: {run_id}
+Status: {status}
+Source: {source}
+Sheet: {sheet_link}
+
+Processed:
+- Total rows: {total_rows}
+- Successes: {success_count}
+- Errors: {error_count}
+- Skipped: {skipped_count}
+
+Rows:
+- Pending rows: {pending_rows}
+- Rejected rows: {rejected_rows}
+
+Notes:
+{notes}
