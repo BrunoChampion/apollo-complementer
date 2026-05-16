@@ -105,7 +105,19 @@ def _category_from_risk_text(risk_text: str) -> str | None:
         )
     ):
         return "identity_conflict"
-    if any(term in risk_text for term in ("buyer", "authority", "decision")):
+    if any(
+        term in risk_text
+        for term in (
+            "unclear buyer",
+            "unclear authority",
+            "no clear authority",
+            "not a decision maker",
+            "not decision maker",
+            "may not have enough authority",
+            "insufficient authority",
+            "low authority",
+        )
+    ):
         return "unclear_buyer_authority"
     return None
 

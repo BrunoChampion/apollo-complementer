@@ -103,6 +103,40 @@ def test_linkedin_identity_caution_does_not_force_review() -> None:
     assert updated.recommended_action == RecommendedAction.DRAFT
 
 
+def test_positive_buyer_tier_signal_does_not_force_review() -> None:
+    result = EnrichmentResult(
+        enrichment_id="e7",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        recommended_action=RecommendedAction.DRAFT,
+        risk_flags=[
+            "prospect is tier B buyer",
+            "operational pain hypothesis identified",
+        ],
+    )
+
+    updated = apply_review_decision(result)
+
+    assert updated.review_required is False
+    assert updated.recommended_action == RecommendedAction.DRAFT
+
+
+def test_explicit_unclear_authority_still_forces_review() -> None:
+    result = EnrichmentResult(
+        enrichment_id="e8",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        recommended_action=RecommendedAction.DRAFT,
+        risk_flags=[
+            "Unclear authority: person may not have enough authority for a USD 5k-10k project.",
+        ],
+    )
+
+    updated = apply_review_decision(result)
+
+    assert updated.review_required is True
+    assert updated.review_category == "unclear_buyer_authority"
+    assert updated.recommended_action == RecommendedAction.NEEDS_MANUAL_RESEARCH
+
+
 def test_explicit_company_size_conflict_still_forces_review() -> None:
     result = EnrichmentResult(
         enrichment_id="e5",
