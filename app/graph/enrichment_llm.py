@@ -5,6 +5,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from app.core.langfuse import get_tracer
 from app.domain.enrichment import (
     EnrichmentResult,
     EnrichmentStatus,
@@ -144,17 +145,39 @@ class OpenAIEnrichmentLLM:
                 },
             ],
         }
-        with httpx.Client(timeout=self.timeout_seconds) as client:
-            response = client.post(
-                f"{self.base_url}/responses",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=body,
+        tracer = get_tracer()
+        with tracer.generation(
+            "enrichment.openai.responses",
+            model=self.model,
+            input={
+                "instruction_preview": instructions[:500],
+                "company_name": payload.get("company_name"),
+                "company_domain": payload.get("company_domain"),
+                "country": payload.get("country"),
+                "web_result_count": len(payload.get("web_results") or []),
+            },
+            metadata={
+                "feature": "enrichment",
+                "reasoning_effort": self.reasoning_effort,
+                "base_url": self.base_url,
+            },
+        ) as generation:
+            with httpx.Client(timeout=self.timeout_seconds) as client:
+                response = client.post(
+                    f"{self.base_url}/responses",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                )
+                response.raise_for_status()
+                data = response.json()
+            generation.update(
+                output=_summarize_response(data),
+                usage=_usage_details(data),
+                metadata={"response_id": data.get("id")},
             )
-            response.raise_for_status()
-            data = response.json()
 
         text = self._extract_output_text(data)
         try:
@@ -243,6 +266,37 @@ class OpenAIEnrichmentLLM:
             confidence_score=confidence,
             recommended_action=recommended_action,
         )
+
+
+def _summarize_response(response: dict[str, Any]) -> dict[str, Any]:
+    output_text = response.get("output_text")
+    if not isinstance(output_text, str):
+        chunks: list[str] = []
+        for item in response.get("output", []):
+            if not isinstance(item, dict):
+                continue
+            for content in item.get("content", []):
+                if isinstance(content, dict) and content.get("type") in {"output_text", "text"}:
+                    text = content.get("text")
+                    if isinstance(text, str):
+                        chunks.append(text)
+        output_text = "\n".join(chunks)
+    return {
+        "id": response.get("id"),
+        "status": response.get("status"),
+        "output_preview": output_text[:500],
+    }
+
+
+def _usage_details(response: dict[str, Any]) -> dict[str, Any] | None:
+    usage = response.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    return {
+        "input": usage.get("input_tokens"),
+        "output": usage.get("output_tokens"),
+        "total": usage.get("total_tokens"),
+    }
 
 
 class DeterministicEnrichmentLLM:

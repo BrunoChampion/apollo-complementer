@@ -138,6 +138,17 @@ class DeterministicEnrichmentAgent:
                         used_in_message=True,
                     )
                 )
+            elif stack_result and stack_result.get("status") == "ok":
+                evidence_items.append(
+                    EvidenceItem(
+                        claim=f"{company_name} has an official website available for research",
+                        source_type=EvidenceSourceType.WEBSITE,
+                        source_url=str(website),
+                        quote_or_summary="Website was reachable, but no strong technology signal was detected.",
+                        confidence=40,
+                        used_in_message=False,
+                    )
+                )
 
         if domain and len(history) < max_iterations:
             github_result = self._call_tool(
@@ -242,6 +253,7 @@ class LangChainEnrichmentAgent:
         base_url: str,
         create_agent_func: Callable[..., Any] | None = None,
         chat_model: Any | None = None,
+        tracer: Tracer | None = None,
     ) -> None:
         self.api_key = api_key
         self.model = model
@@ -249,6 +261,7 @@ class LangChainEnrichmentAgent:
         self.base_url = base_url
         self.create_agent_func = create_agent_func
         self.chat_model = chat_model
+        self.tracer = tracer or get_tracer()
         self._agent = None
 
     def invoke(self, state: EnrichmentState) -> dict[str, Any]:
@@ -287,15 +300,43 @@ class LangChainEnrichmentAgent:
             self.model,
             tool_budget,
         )
-        response = agent.invoke(
-            {
-                "messages": [
-                    {"role": "system", "content": _system_prompt()},
-                    {"role": "user", "content": _lead_prompt(state)},
-                ]
+        config: dict[str, Any] = {
+            "recursion_limit": recursion_limit,
+            "run_name": "enrichment.agent.langchain",
+            "metadata": {
+                "langfuse_session_id": state.get("run_id"),
+                "langfuse_tags": ["feature:enrichment", "agent:langchain"],
+                "run_id": state.get("run_id"),
+                "lead_id": state.get("lead_id") or lead.get("lead_id"),
+                "company_name": lead.get("company_name"),
+                "country": lead.get("country"),
+                "model": self.model,
             },
-            config={"recursion_limit": recursion_limit},
-        )
+        }
+        callbacks = self.tracer.langchain_callbacks()
+        if callbacks:
+            config["callbacks"] = callbacks
+
+        with self.tracer.span(
+            "enrichment.agent.langchain",
+            metadata={
+                "run_id": state.get("run_id"),
+                "lead_id": state.get("lead_id") or lead.get("lead_id"),
+                "company_name": lead.get("company_name"),
+                "country": lead.get("country"),
+                "model": self.model,
+                "tool_budget": tool_budget,
+            },
+        ):
+            response = agent.invoke(
+                {
+                    "messages": [
+                        {"role": "system", "content": _system_prompt()},
+                        {"role": "user", "content": _lead_prompt(state)},
+                    ]
+                },
+                config=config,
+            )
         structured = _extract_structured_response(response)
         result = _agent_output_to_result(state, structured)
         messages = response.get("messages", []) if isinstance(response, dict) else []

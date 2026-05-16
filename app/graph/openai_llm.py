@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 
+from app.core.langfuse import get_tracer
 from app.domain.leads import LeadRow
 
 
@@ -147,17 +148,43 @@ class OpenAIDraftLLM:
                 },
             ],
         }
-        with httpx.Client(timeout=self.timeout_seconds) as client:
-            response = client.post(
-                f"{self.base_url}/responses",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=body,
+        tracer = get_tracer()
+        with tracer.generation(
+            "draft.openai.responses",
+            model=self.model,
+            input={
+                "instruction_preview": instructions[:500],
+                "payload_keys": sorted(payload.keys()),
+                "company_name": (payload.get("lead") or {}).get("company_name")
+                if isinstance(payload.get("lead"), dict)
+                else None,
+                "lead_id": (payload.get("lead") or {}).get("lead_id")
+                if isinstance(payload.get("lead"), dict)
+                else None,
+            },
+            metadata={
+                "feature": "drafting",
+                "reasoning_effort": self.reasoning_effort,
+                "base_url": self.base_url,
+            },
+        ) as generation:
+            with httpx.Client(timeout=self.timeout_seconds) as client:
+                response = client.post(
+                    f"{self.base_url}/responses",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                )
+                response.raise_for_status()
+                data = response.json()
+            generation.update(
+                output=_summarize_response(data),
+                usage=_usage_details(data),
+                metadata={"response_id": data.get("id")},
             )
-            response.raise_for_status()
-            return response.json()
+            return data
 
 
 def _extract_output_text(response: dict[str, Any]) -> str:
@@ -182,3 +209,23 @@ def _limit_words(text: str, max_words: int) -> str:
     if len(words) <= max_words:
         return text
     return " ".join(words[:max_words])
+
+
+def _summarize_response(response: dict[str, Any]) -> dict[str, Any]:
+    text = _extract_output_text(response)
+    return {
+        "id": response.get("id"),
+        "status": response.get("status"),
+        "output_preview": text[:500],
+    }
+
+
+def _usage_details(response: dict[str, Any]) -> dict[str, Any] | None:
+    usage = response.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    return {
+        "input": usage.get("input_tokens"),
+        "output": usage.get("output_tokens"),
+        "total": usage.get("total_tokens"),
+    }

@@ -12,6 +12,7 @@ from app.api.routes.runs import router as runs_router
 from app.api.routes.sheet_imports import router as sheet_imports_router
 from app.api.routes.sourcing import router as sourcing_router
 from app.core.config import get_settings
+from app.core.langfuse import get_tracer
 from app.core.logging import configure_logging
 from app.db.session import init_db
 
@@ -22,7 +23,10 @@ configure_logging(settings.log_level)
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     init_db()
-    yield
+    try:
+        yield
+    finally:
+        get_tracer(settings).flush()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
