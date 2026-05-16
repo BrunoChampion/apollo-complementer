@@ -30,6 +30,15 @@ class DraftLLM(Protocol):
         max_words: int,
     ) -> str: ...
 
+    def validate_email_language(
+        self,
+        *,
+        lead: LeadRow,
+        subject: str,
+        body: str,
+        max_words: int,
+    ) -> dict[str, object]: ...
+
 
 class DeterministicDraftLLM:
     def extract_manual_context(self, lead: LeadRow) -> str:
@@ -57,7 +66,10 @@ class DeterministicDraftLLM:
         evidence_claim = signal or "trabaja con operaciones B2B donde el conocimiento pesa mucho"
         friction = (
             message_angle
-            or "el conocimiento operativo existe, pero no siempre está disponible como flujo accionable"
+            or (
+                "el conocimiento operativo existe, pero no siempre esta disponible "
+                "como flujo accionable"
+            )
         )
         body = (
             f"Hola {first_name},\n\n"
@@ -87,6 +99,20 @@ class DeterministicDraftLLM:
         if len(words) > max_words:
             revised = " ".join(words[:max_words])
         return revised
+
+    def validate_email_language(
+        self,
+        *,
+        lead: LeadRow,
+        subject: str,
+        body: str,
+        max_words: int,
+    ) -> dict[str, object]:
+        return {
+            "passes": True,
+            "issues": [],
+            "reason": "Deterministic local validator skipped semantic language review.",
+        }
 
 
 def validate_input(state: LeadState) -> dict[str, object]:

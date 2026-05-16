@@ -1,8 +1,11 @@
+import logging
+
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from app.graph.draft_guardrails import (
     language_validator,
+    llm_language_validator_node,
     route_after_guardrail,
     tone_checker,
     verify_claims_against_evidence,
@@ -23,6 +26,31 @@ from app.graph.nodes import (
 from app.graph.routing import route_after_evaluation
 from app.graph.state import LeadState
 
+logger = logging.getLogger(__name__)
+
+
+def build_default_draft_llm() -> DraftLLM:
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    provider = settings.llm_provider.lower()
+    if provider == "openai" and settings.openai_api_key:
+        from app.graph.openai_llm import OpenAIDraftLLM
+
+        logger.info(
+            "draft.llm.provider=openai model=%s reasoning_effort=%s",
+            settings.openai_model,
+            settings.openai_reasoning_effort,
+        )
+        return OpenAIDraftLLM(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            reasoning_effort=settings.openai_reasoning_effort,
+            base_url=settings.openai_base_url,
+        )
+    logger.info("draft.llm.provider=deterministic configured_provider=%s", provider)
+    return DeterministicDraftLLM()
+
 
 def _route_after_gate(state: LeadState) -> str:
     if state.get("status") in {"error", "insufficient_data", "needs_manual_research"}:
@@ -34,7 +62,7 @@ def build_enrich_and_draft_graph(
     llm: DraftLLM | None = None,
     checkpointer: InMemorySaver | None = None,
 ):
-    llm = llm or DeterministicDraftLLM()
+    llm = llm or build_default_draft_llm()
     checkpointer = checkpointer or InMemorySaver()
 
     graph = StateGraph(LeadState)
@@ -44,7 +72,12 @@ def build_enrich_and_draft_graph(
     graph.add_node("select_message_angle", select_message_angle)
     graph.add_node("draft_message", draft_message_node(llm))
     graph.add_node("verify_claims", verify_claims_against_evidence)
-    graph.add_node("language_validator", language_validator)
+    graph.add_node(
+        "language_validator",
+        llm_language_validator_node(llm)
+        if not isinstance(llm, DeterministicDraftLLM)
+        else language_validator,
+    )
     graph.add_node("tone_checker", tone_checker)
     graph.add_node("evaluate_draft", evaluate_draft)
     graph.add_node("write_result", write_enrich_and_draft_result)

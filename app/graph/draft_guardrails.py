@@ -5,6 +5,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from app.core.markets import country_market_status
+from app.domain.leads import LeadRow
 from app.graph.state import LeadState
 
 FACTUAL_SIGNALS = (
@@ -102,6 +103,41 @@ def language_validator(state: LeadState) -> dict[str, Any]:
             "agent_note": "Draft needs revision: language should be Spanish.",
         }
     return {"status": "language_verified"}
+
+
+def llm_language_validator_node(llm):
+    def node(state: LeadState) -> dict[str, Any]:
+        lead_data = state.get("lead", {})
+        country = lead_data.get("country")
+        if country_market_status(country) == "unsupported":
+            return {
+                "status": "needs_revision",
+                "agent_note": "Draft not generated: country is unsupported for Spanish ICP.",
+            }
+
+        playbook = state.get("playbook", {})
+        message_rules = playbook.get("message_rules", {}) if isinstance(playbook, dict) else {}
+        max_words = int(message_rules.get("max_words_email") or 120)
+        lead = LeadRow.model_validate(lead_data)
+        subject = str(state.get("email_subject") or "")
+        body = _draft_text(state)
+        review = llm.validate_email_language(
+            lead=lead,
+            subject=subject,
+            body=body,
+            max_words=max_words,
+        )
+        if not review.get("passes"):
+            issues = [str(issue) for issue in review.get("issues", []) if issue]
+            reason = str(review.get("reason") or "LLM language review failed.")
+            return {
+                "status": "needs_revision",
+                "quality_issues": state.get("quality_issues", []) + issues,
+                "agent_note": f"Draft needs revision: {reason}",
+            }
+        return {"status": "language_verified"}
+
+    return node
 
 
 def tone_checker(state: LeadState) -> dict[str, Any]:

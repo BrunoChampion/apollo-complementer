@@ -5,10 +5,12 @@ from langgraph.graph import END, START, StateGraph
 
 from app.graph.draft_guardrails import (
     language_validator,
+    llm_language_validator_node,
     route_after_guardrail,
     tone_checker,
     verify_claims_against_evidence,
 )
+from app.graph.enrich_and_draft_builder import build_default_draft_llm
 from app.graph.nodes import DeterministicDraftLLM, DraftLLM, evaluate_draft, load_playbook_node
 from app.graph.state import LeadState
 from app.services.revision_hash import hash_revision_instruction
@@ -79,14 +81,19 @@ def build_revise_enriched_draft_graph(
     llm: DraftLLM | None = None,
     checkpointer: InMemorySaver | None = None,
 ):
-    llm = llm or DeterministicDraftLLM()
+    llm = llm or build_default_draft_llm()
     checkpointer = checkpointer or InMemorySaver()
 
     graph = StateGraph(LeadState)
     graph.add_node("load_playbook", load_playbook_node)
     graph.add_node("revise_draft", revise_enriched_draft_node(llm))
     graph.add_node("verify_claims", verify_claims_against_evidence)
-    graph.add_node("language_validator", language_validator)
+    graph.add_node(
+        "language_validator",
+        llm_language_validator_node(llm)
+        if not isinstance(llm, DeterministicDraftLLM)
+        else language_validator,
+    )
     graph.add_node("tone_checker", tone_checker)
     graph.add_node("evaluate_draft", evaluate_draft)
     graph.add_node("write_result", write_revise_result)

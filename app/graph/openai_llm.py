@@ -90,7 +90,7 @@ class OpenAIDraftLLM:
         )
         subject = str(result.get("subject") or f"Idea para {lead.company_name}")
         body = str(result.get("body") or "")
-        return subject, _limit_words(body, max_words)
+        return subject, body
 
     def revise_email(
         self,
@@ -112,6 +112,40 @@ class OpenAIDraftLLM:
             },
         )
         return _limit_words(str(result.get("body") or previous_draft), max_words)
+
+    def validate_email_language(
+        self,
+        *,
+        lead: LeadRow,
+        subject: str,
+        body: str,
+        max_words: int,
+    ) -> dict[str, object]:
+        result = self._json_response(
+            (
+                "Validate this outbound email draft. Return JSON with keys "
+                "`passes`, `issues`, and `reason`. The draft must be written in "
+                "natural professional Spanish for a LATAM B2B buyer. It must not "
+                "contain English prose, Spanglish, awkward English possessives like "
+                "`Company's`, untranslated operational paragraphs, or a sentence cut "
+                "off because of word limits. Allow proper nouns and common acronyms "
+                "such as NYVEX, IA/RAG, API, CRM, B2B, HR, COO, SaaS and product names. "
+                f"The body must be under {max_words} words. If any issue is present, "
+                "`passes` must be false and `issues` must list the concrete problems. "
+                "Do not rewrite the draft in this validation step."
+            ),
+            {
+                "lead": lead.model_dump(mode="json"),
+                "subject": subject,
+                "body": body,
+                "max_words": max_words,
+            },
+        )
+        return {
+            "passes": bool(result.get("passes")),
+            "issues": result.get("issues") if isinstance(result.get("issues"), list) else [],
+            "reason": str(result.get("reason") or ""),
+        }
 
     def _text_response(self, instructions: str, payload: dict[str, Any]) -> str:
         response = self._responses_create(instructions=instructions, payload=payload)
