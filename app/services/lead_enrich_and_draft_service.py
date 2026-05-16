@@ -253,8 +253,19 @@ class LeadEnrichAndDraftService:
         lead_ids: list[str] | None = None,
         run_id: str = "manual",
     ) -> list[dict[str, Any]]:
+        logger.info(
+            "draft.run.start run_id=%s selected_leads=%s",
+            run_id,
+            len(lead_ids) if lead_ids else "all",
+        )
         rows = self.sheet_client.read_rows(tab_name=LEADS_TAB)
+        logger.info(
+            "draft.run.rows_loaded run_id=%s rows=%s",
+            run_id,
+            len(rows),
+        )
         results = []
+        drafts_appended = 0
 
         for row in rows:
             values = dict(row.values)
@@ -264,9 +275,21 @@ class LeadEnrichAndDraftService:
                 continue
             try:
                 lead = LeadRow.model_validate(values)
-            except Exception:
+            except Exception as exc:
+                logger.info(
+                    "draft.run.skip_invalid_row row_number=%s error=%s",
+                    row.row_number,
+                    exc,
+                )
                 continue
 
+            logger.info(
+                "draft.run.lead_start run_id=%s lead_id=%s company=%s status=%s",
+                run_id,
+                lead.lead_id,
+                lead.company_name,
+                lead.status.value,
+            )
             result = self.service.draft_from_existing_enrichment(lead, run_id=run_id)
             update_values: dict[str, Any] = {
                 "status": result.get("status", "unknown"),
@@ -299,8 +322,29 @@ class LeadEnrichAndDraftService:
                 values=update_values,
                 tab_name=LEADS_TAB,
             )
+            if self._append_generated_draft(
+                lead=lead,
+                result=result,
+                run_id=run_id,
+            ):
+                drafts_appended += 1
+            logger.info(
+                "draft.run.lead_done "
+                "run_id=%s lead_id=%s status=%s draft_created=%s quality_score=%s",
+                run_id,
+                lead.lead_id,
+                result.get("status", "unknown"),
+                bool(result.get("email_draft")),
+                result.get("quality_score"),
+            )
             results.append(result)
 
+        logger.info(
+            "draft.run.done run_id=%s processed=%s drafts_appended=%s",
+            run_id,
+            len(results),
+            drafts_appended,
+        )
         return results
 
     def sync_enrichment_results_from_leads(
@@ -383,10 +427,18 @@ class LeadEnrichAndDraftService:
         lead: LeadRow,
         result: dict[str, Any],
         run_id: str,
-    ) -> None:
+    ) -> bool:
         email_draft = result.get("email_draft")
         if not email_draft:
-            return
+            logger.info(
+                "draft.email_drafts.skip_no_draft "
+                "run_id=%s lead_id=%s status=%s agent_note=%s",
+                run_id,
+                lead.lead_id,
+                result.get("status"),
+                result.get("agent_note"),
+            )
+            return False
 
         enrichment_result = _parse_enrichment_result(result.get("enrichment_result"))
         self.sheet_client.append_row(
@@ -416,6 +468,13 @@ class LeadEnrichAndDraftService:
                 "notes": "",
             },
         )
+        logger.info(
+            "draft.email_drafts.appended run_id=%s lead_id=%s enrichment_id=%s",
+            run_id,
+            lead.lead_id,
+            enrichment_result.get("enrichment_id"),
+        )
+        return True
 
 
 def _should_revise(lead: LeadRow) -> bool:
