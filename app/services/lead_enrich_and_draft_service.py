@@ -1,9 +1,15 @@
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from app.domain.leads import LeadAction, LeadRow, LeadStatus
 from app.integrations.sheets.base import SheetClient
-from app.integrations.sheets.constants import ENRICHMENT_TAB, LEADS_TAB
+from app.integrations.sheets.constants import (
+    EMAIL_DRAFTS_HEADERS,
+    EMAIL_DRAFTS_TAB,
+    ENRICHMENT_TAB,
+    LEADS_TAB,
+)
 from app.services.enrich_and_draft_service import (
     EnrichAndDraftService,
     _parse_enrichment_result,
@@ -166,6 +172,11 @@ class LeadEnrichAndDraftService:
                 values=update_values,
                 tab_name=LEADS_TAB,
             )
+            self._append_generated_draft(
+                lead=lead,
+                result=result,
+                run_id=run_id,
+            )
             logger.info(
                 "enrich_and_draft.run.lead_done "
                 "run_id=%s lead_id=%s status=%s draft_created=%s quality_score=%s",
@@ -227,6 +238,11 @@ class LeadEnrichAndDraftService:
                 row_number=row.row_number,
                 values=update_values,
                 tab_name=LEADS_TAB,
+            )
+            self._append_generated_draft(
+                lead=lead,
+                result=result,
+                run_id=run_id,
             )
             results.append(result)
 
@@ -360,6 +376,46 @@ class LeadEnrichAndDraftService:
             for row in rows
             if row.values.get("enrichment_id")
         }
+
+    def _append_generated_draft(
+        self,
+        *,
+        lead: LeadRow,
+        result: dict[str, Any],
+        run_id: str,
+    ) -> None:
+        email_draft = result.get("email_draft")
+        if not email_draft:
+            return
+
+        enrichment_result = _parse_enrichment_result(result.get("enrichment_result"))
+        self.sheet_client.append_row(
+            tab_name=EMAIL_DRAFTS_TAB,
+            headers=EMAIL_DRAFTS_HEADERS,
+            values={
+                "run_id": run_id,
+                "lead_id": lead.lead_id,
+                "created_at": datetime.now(UTC).isoformat(),
+                "company_name": lead.company_name,
+                "prospect_name": lead.prospect_name,
+                "prospect_title": lead.prospect_title,
+                "prospect_email": lead.prospect_email,
+                "email_subject": result.get("email_subject"),
+                "email_draft": email_draft,
+                "draft_status": result.get("status"),
+                "quality_score": result.get("quality_score"),
+                "quality_issues": result.get("quality_issues"),
+                "agent_note": result.get("agent_note"),
+                "enrichment_id": enrichment_result.get("enrichment_id"),
+                "gmail_draft_id": "",
+                "gmail_draft_url": "",
+                "approved": False,
+                "sent_manually": "",
+                "sent_at": "",
+                "reply_status": "",
+                "notes": "",
+            },
+        )
 
 
 def _should_revise(lead: LeadRow) -> bool:
