@@ -8,7 +8,10 @@ def test_needs_review_blocks_draft_and_explains_role_transition() -> None:
         enrichment_status=EnrichmentStatus.NEEDS_REVIEW,
         recommended_action=RecommendedAction.DRAFT,
         risk_flags=[
-            "Current-role conflict: profile says COO but recent post says leaving day-to-day operations.",
+            (
+                "Current-role conflict: profile says COO but recent post says leaving "
+                "day-to-day operations."
+            ),
         ],
     )
 
@@ -28,7 +31,10 @@ def test_approve_exception_allows_reviewed_draft_action() -> None:
         recommended_action=RecommendedAction.DRAFT,
         user_decision="approve_exception",
         risk_flags=[
-            "Prospect LinkedIn location is Fortaleza, Ceará, Brazil, while the lead country is Spain.",
+            (
+                "Prospect LinkedIn location is Fortaleza, Ceara, Brazil, while the "
+                "lead country is Spain."
+            ),
         ],
     )
 
@@ -37,3 +43,81 @@ def test_approve_exception_allows_reviewed_draft_action() -> None:
     assert updated.review_required is True
     assert updated.review_category == "market_conflict"
     assert updated.recommended_action == RecommendedAction.DRAFT
+
+
+def test_positive_headcount_signal_does_not_force_review() -> None:
+    result = EnrichmentResult(
+        enrichment_id="e3",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        recommended_action=RecommendedAction.DRAFT,
+        risk_flags=[
+            "headcount in ICP range (20-200)",
+            "company website present",
+            "prospect is tier B buyer",
+        ],
+    )
+
+    updated = apply_review_decision(result)
+
+    assert updated.review_required is False
+    assert updated.recommended_action == RecommendedAction.DRAFT
+
+
+def test_supported_market_with_brazil_caution_does_not_force_review() -> None:
+    result = EnrichmentResult(
+        enrichment_id="e4",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        country="Chile",
+        recommended_action=RecommendedAction.DRAFT,
+        risk_flags=[
+            (
+                "Brazil appears in public/company context, but focus outreach on "
+                "Chile/Mexico Spanish-speaking operations."
+            ),
+            "confirmed B2B fit",
+        ],
+    )
+
+    updated = apply_review_decision(result)
+
+    assert updated.review_required is False
+    assert updated.recommended_action == RecommendedAction.DRAFT
+
+
+def test_linkedin_identity_caution_does_not_force_review() -> None:
+    result = EnrichmentResult(
+        enrichment_id="e6",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        recommended_action=RecommendedAction.DRAFT,
+        risk_flags=[
+            (
+                "Person and company claims are largely from pasted LinkedIn context; "
+                "avoid treating similarly named web results as identity proof."
+            ),
+        ],
+    )
+
+    updated = apply_review_decision(result)
+
+    assert updated.review_required is False
+    assert updated.recommended_action == RecommendedAction.DRAFT
+
+
+def test_explicit_company_size_conflict_still_forces_review() -> None:
+    result = EnrichmentResult(
+        enrichment_id="e5",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        recommended_action=RecommendedAction.DRAFT,
+        risk_flags=[
+            (
+                "Company size is inconsistent: user provided 310, LinkedIn context "
+                "says 51-200 employees."
+            ),
+        ],
+    )
+
+    updated = apply_review_decision(result)
+
+    assert updated.review_required is True
+    assert updated.review_category == "company_size_conflict"
+    assert updated.recommended_action == RecommendedAction.NEEDS_MANUAL_RESEARCH

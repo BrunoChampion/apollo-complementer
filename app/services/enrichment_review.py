@@ -61,13 +61,21 @@ def build_review_decision(result: EnrichmentResult) -> ReviewDecision:
 
 
 def _category_from_risk_text(risk_text: str) -> str | None:
-    if any(term in risk_text for term in ("current-role conflict", "leaving", "new role", "advisor", "day-to-day")):
+    if any(
+        term in risk_text
+        for term in (
+            "current-role conflict",
+            "leaving",
+            "new role",
+            "advisor",
+            "day-to-day",
+        )
+    ):
         return "role_transition"
     if any(
         term in risk_text
         for term in (
             "location is",
-            "brazil",
             "market/language",
             "market conflict",
             "unsupported country",
@@ -75,9 +83,27 @@ def _category_from_risk_text(risk_text: str) -> str | None:
         )
     ):
         return "market_conflict"
-    if any(term in risk_text for term in ("company-size conflict", "company size conflict", "headcount", "employees")):
+    if any(
+        term in risk_text
+        for term in (
+            "company-size conflict",
+            "company size conflict",
+            "company above 200 employees needs strong exception",
+            "company size is inconsistent",
+            "company size signals conflict",
+        )
+    ):
         return "company_size_conflict"
-    if any(term in risk_text for term in ("identity", "same person", "conflict")):
+    if any(
+        term in risk_text
+        for term in (
+            "identity conflict",
+            "same person conflict",
+            "different person",
+            "different company",
+            "may refer to a different",
+        )
+    ):
         return "identity_conflict"
     if any(term in risk_text for term in ("buyer", "authority", "decision")):
         return "unclear_buyer_authority"
