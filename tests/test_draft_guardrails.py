@@ -1,5 +1,6 @@
 from app.graph.draft_guardrails import (
     language_validator,
+    route_after_guardrail_or_repair,
     tone_checker,
     verify_claims_against_evidence,
 )
@@ -111,6 +112,45 @@ def test_tone_checker_rejects_enumerative_product_catalog_opener() -> None:
 
     assert result["status"] == "needs_revision"
     assert "listing many capabilities" in result["agent_note"]
+
+
+def test_route_repairs_repairable_guardrail_once() -> None:
+    state = _state("Hola Ana, vi que Acme incluye soporte, CRM, tickets y onboarding.")
+    state.update(
+        {
+            "status": "needs_revision",
+            "quality_issues": ["opener should be natural and concise, not a product catalog"],
+            "draft_repair_count": 0,
+        }
+    )
+
+    assert route_after_guardrail_or_repair(state) == "repair_draft"
+
+
+def test_route_does_not_repair_unsupported_claim() -> None:
+    state = _state("Hola Ana, vi que Acme contrató 5 developers.")
+    state.update(
+        {
+            "status": "needs_revision",
+            "quality_issues": ["unsupported claim: Acme contrató 5 developers"],
+            "draft_repair_count": 0,
+        }
+    )
+
+    assert route_after_guardrail_or_repair(state) == "write_result"
+
+
+def test_tone_checker_rejects_trivial_ai_pitch() -> None:
+    result = tone_checker(
+        _state(
+            "Hola Ana, vi que Acme trabaja con onboarding B2B. "
+            "Podría ayudarles a generar checklist y resumir notas. "
+            "Tiene sentido que te las comparta brevemente?"
+        )
+    )
+
+    assert result["status"] == "needs_revision"
+    assert "real architecture" in result["quality_issues"][0]
 
 
 def test_tone_checker_passes_concise_operational_surface_opener() -> None:

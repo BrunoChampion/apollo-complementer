@@ -35,6 +35,21 @@ class DraftLLM(Protocol):
         max_words: int,
     ) -> str: ...
 
+    def auto_repair_email(
+        self,
+        *,
+        lead: LeadRow,
+        subject: str,
+        body: str,
+        issues: list[str],
+        evidence_items: list[dict[str, object]],
+        selected_signal: str | None,
+        message_angle: str | None,
+        solution_fit_type: str | None,
+        nyvex_positioning: str | None,
+        max_words: int,
+    ) -> tuple[str, str]: ...
+
     def validate_email_language(
         self,
         *,
@@ -112,6 +127,28 @@ class DeterministicDraftLLM:
         if len(words) > max_words:
             revised = " ".join(words[:max_words])
         return revised
+
+    def auto_repair_email(
+        self,
+        *,
+        lead: LeadRow,
+        subject: str,
+        body: str,
+        issues: list[str],
+        evidence_items: list[dict[str, object]],
+        selected_signal: str | None,
+        message_angle: str | None,
+        solution_fit_type: str | None,
+        nyvex_positioning: str | None,
+        max_words: int,
+    ) -> tuple[str, str]:
+        fixed_body = body.replace("Operations Engineering", "operaciones")
+        fixed_body = fixed_body.replace("Engagement Management", "gestión de clientes")
+        fixed_body = fixed_body.replace("enterprise", "B2B")
+        words = fixed_body.split()
+        if len(words) > max_words:
+            fixed_body = " ".join(words[:max_words])
+        return subject, fixed_body
 
     def validate_email_language(
         self,
@@ -232,6 +269,42 @@ def draft_message_node(llm: DraftLLM) -> callable:
     return node
 
 
+def repair_draft_node(llm: DraftLLM) -> callable:
+    def node(state: LeadState) -> dict[str, object]:
+        if state.get("status") == "error":
+            return {}
+        lead = LeadRow.from_mapping(state["lead"])
+        playbook = state["playbook"]
+        max_words = int(playbook["message_rules"]["max_words_email"])
+        subject, body = llm.auto_repair_email(
+            lead=lead,
+            subject=str(state.get("email_subject") or f"Hipótesis para {lead.company_name}"),
+            body=str(state.get("email_draft") or ""),
+            issues=[str(issue) for issue in state.get("quality_issues", [])],
+            evidence_items=state.get("evidence_items", []),
+            selected_signal=state.get("draft_signal_claim"),
+            message_angle=state.get("message_angle"),
+            solution_fit_type=state.get("draft_solution_fit_type"),
+            nyvex_positioning=state.get("draft_nyvex_positioning"),
+            max_words=max_words,
+        )
+        repair_count = int(state.get("draft_repair_count") or 0) + 1
+        repair_reason = _repair_reason(state)
+        return {
+            "email_subject": subject,
+            "email_draft": body,
+            "draft_original_body": state.get("draft_original_body")
+            or state.get("email_draft"),
+            "draft_repair_count": repair_count,
+            "draft_repair_reason": repair_reason,
+            "quality_issues": [],
+            "agent_note": f"Draft auto-repaired after guardrail issues: {repair_reason}",
+            "status": "draft_repaired",
+        }
+
+    return node
+
+
 def evaluate_draft(state: LeadState) -> dict[str, object]:
     if state.get("status") == "error":
         return {}
@@ -327,9 +400,24 @@ def _default_nyvex_positioning(solution_fit_type: str | None) -> str:
     )
 
 
+def _repair_reason(state: LeadState) -> str:
+    issues = [str(issue) for issue in state.get("quality_issues", []) if issue]
+    if issues:
+        return "; ".join(issues[:3])
+    return str(state.get("agent_note") or "guardrail failed")
+
+
 def write_graph_result(state: LeadState) -> dict[str, object]:
     if state.get("status") == "error":
         return {"agent_note": "Graph failed before drafting."}
+    repair_count = int(state.get("draft_repair_count") or 0)
+    if repair_count:
+        return {
+            "agent_note": (
+                f"Draft generated after {repair_count} auto-repair attempt(s); "
+                f"quality score is {state.get('quality_score')}."
+            )
+        }
     return {
         "agent_note": (
             f"Draft generated with fit score {state.get('fit_score')} "

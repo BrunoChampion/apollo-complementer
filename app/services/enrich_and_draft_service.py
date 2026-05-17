@@ -218,6 +218,10 @@ class EnrichAndDraftService:
             "email_draft": draft_output.get("email_draft"),
             "quality_score": draft_output.get("quality_score"),
             "quality_issues": draft_output.get("quality_issues"),
+            "selected_signal": draft_output.get("draft_signal_claim"),
+            "solution_fit_type": draft_output.get("draft_solution_fit_type"),
+            "draft_repair_count": draft_output.get("draft_repair_count"),
+            "draft_repair_reason": draft_output.get("draft_repair_reason"),
             "enrichment_result": enrichment_dict,
         }
 
@@ -273,6 +277,10 @@ class EnrichAndDraftService:
             "revised_draft": output.get("revised_draft"),
             "quality_score": output.get("quality_score"),
             "quality_issues": output.get("quality_issues"),
+            "selected_signal": output.get("draft_signal_claim"),
+            "solution_fit_type": output.get("draft_solution_fit_type"),
+            "draft_repair_count": output.get("draft_repair_count"),
+            "draft_repair_reason": output.get("draft_repair_reason"),
             "revision_instruction_hash": output.get("revision_instruction_hash"),
             "last_processed_revision_hash": output.get("last_processed_revision_hash"),
             "revision_count": output.get("revision_count"),
@@ -407,6 +415,10 @@ class EnrichAndDraftService:
             "email_draft": draft_output.get("email_draft"),
             "quality_score": draft_output.get("quality_score"),
             "quality_issues": draft_output.get("quality_issues"),
+            "selected_signal": draft_output.get("draft_signal_claim"),
+            "solution_fit_type": draft_output.get("draft_solution_fit_type"),
+            "draft_repair_count": draft_output.get("draft_repair_count"),
+            "draft_repair_reason": draft_output.get("draft_repair_reason"),
             "enrichment_result": enrichment_dict,
             **{
                 **readiness.as_update(),

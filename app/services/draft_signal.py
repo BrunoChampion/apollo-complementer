@@ -5,8 +5,15 @@ from dataclasses import dataclass
 from app.domain.enrichment import EnrichmentResult, EvidenceItem, EvidenceSourceType
 
 OPERATIONAL_SIGNAL_KEYWORDS = (
+    "adopcion de ia",
+    "adopciÃ³n de ia",
     "academy",
+    "ai adoption",
+    "anomal",
     "api",
+    "asset performance",
+    "automatizacion",
+    "automatizaciÃ³n",
     "base de conocimiento",
     "b2b",
     "centro de ayuda",
@@ -20,6 +27,7 @@ OPERATIONAL_SIGNAL_KEYWORDS = (
     "documentación",
     "enterprise",
     "erp",
+    "field data",
     "help center",
     "hubspot",
     "implementacion",
@@ -31,11 +39,13 @@ OPERATIONAL_SIGNAL_KEYWORDS = (
     "knowledge base",
     "marketplace",
     "onboarding",
+    "on-the-job",
     "operaciones",
     "operations",
     "plataforma",
     "platform",
     "portal",
+    "process automation",
     "procesos",
     "retailers",
     "self-service",
@@ -46,6 +56,12 @@ OPERATIONAL_SIGNAL_KEYWORDS = (
     "whatsapp",
     "intercom",
     "zendesk",
+    "kpi",
+    "reportes",
+    "reporting",
+    "scada",
+    "training",
+    "entrenamiento",
     "workflow",
 )
 
@@ -265,8 +281,9 @@ def _select_why_now_trigger(
 
 
 def _friction_from_result(result: EnrichmentResult, signal: EvidenceItem) -> str:
+    fit_friction = _fit_specific_friction(result, signal)
     if result.operational_pain_hypothesis:
-        return _generalize_friction(result.operational_pain_hypothesis)
+        return _generalize_friction(result.operational_pain_hypothesis, fit_friction)
 
     signal_text = f"{signal.claim} {signal.quote_or_summary or ''}".lower()
     if any(
@@ -287,13 +304,10 @@ def _friction_from_result(result: EnrichmentResult, signal: EvidenceItem) -> str
             "la implementación y el onboarding requieren mucho criterio operativo "
             "que no siempre está disponible en el momento correcto"
         )
-    return (
-        "el conocimiento operativo existe, pero no siempre está disponible como flujo "
-        "accionable para el equipo"
-    )
+    return fit_friction
 
 
-def _generalize_friction(text: str) -> str:
+def _generalize_friction(text: str, fallback: str) -> str:
     cleaned = text.strip().rstrip(".")
     lowered = cleaned.lower()
     direct_markers = (
@@ -304,15 +318,9 @@ def _generalize_friction(text: str) -> str:
         "seguramente",
     )
     if lowered.startswith(direct_markers):
-        return (
-            "el conocimiento operativo existe, pero no siempre está disponible como "
-            "flujo accionable para el equipo"
-        )
+        return fallback
     if _looks_like_direct_person_diagnosis(lowered):
-        return (
-            "el conocimiento operativo existe, pero no siempre esta disponible como "
-            "flujo accionable para soporte, onboarding, implementacion o customer success"
-        )
+        return fallback
     return _sentence_safe_trim(cleaned, 180)
 
 
@@ -366,6 +374,30 @@ def _solution_fit_type(result: EnrichmentResult, signal: EvidenceItem) -> str:
     if any(
         keyword in text
         for keyword in (
+            "anomal",
+            "asset performance",
+            "conciliaci",
+            "data",
+            "datos",
+            "erp",
+            "field data",
+            "kpi",
+            "logistica",
+            "logistics",
+            "pagos",
+            "payment",
+            "pos",
+            "reconciliation",
+            "reporting",
+            "scada",
+            "supply chain",
+            "wms",
+        )
+    ):
+        return "data_ops_fit"
+    if any(
+        keyword in text
+        for keyword in (
             "base de conocimiento",
             "documentation",
             "documentacion",
@@ -379,24 +411,6 @@ def _solution_fit_type(result: EnrichmentResult, signal: EvidenceItem) -> str:
         )
     ):
         return "direct_rag_fit"
-    if any(
-        keyword in text
-        for keyword in (
-            "conciliaci",
-            "data",
-            "datos",
-            "erp",
-            "logistica",
-            "logistics",
-            "pagos",
-            "payment",
-            "pos",
-            "reconciliation",
-            "supply chain",
-            "wms",
-        )
-    ):
-        return "data_ops_fit"
     if any(
         keyword in text
         for keyword in (
@@ -449,10 +463,39 @@ def _signal_type(item: EvidenceItem) -> str:
     return "durable_operational_signal"
 
 
+def _fit_specific_friction(result: EnrichmentResult, signal: EvidenceItem) -> str:
+    fit = _solution_fit_type(result, signal)
+    if fit == "direct_rag_fit":
+        return (
+            "el conocimiento existe, pero queda repartido entre documentaciÃ³n, "
+            "tickets, onboarding y personas clave"
+        )
+    if fit == "data_ops_fit":
+        return (
+            "convertir datos, reglas y excepciones operativas en decisiones "
+            "repetibles suele depender demasiado de coordinaciÃ³n manual"
+        )
+    if fit == "agentic_workflow_fit":
+        return (
+            "los handoffs entre equipos, herramientas y clientes dependen de criterio "
+            "manual que deberÃ­a convertirse en acciones repetibles"
+        )
+    return (
+        "cuando la empresa ya trabaja con IA o software avanzado, el valor suele estar "
+        "en ordenar workflows internos, datos y decisiones con trazabilidad"
+    )
+
+
 def _has_solution_adjacent_signal(text: str) -> bool:
     solution_keywords = (
+        "adopcion de ia",
+        "adopciÃ³n de ia",
         "academy",
+        "ai adoption",
+        "anomal",
         "api",
+        "asset performance",
+        "automatizaci",
         "base de conocimiento",
         "centro de ayuda",
         "crm",
@@ -462,6 +505,7 @@ def _has_solution_adjacent_signal(text: str) -> bool:
         "documentacion",
         "documentaciÃ³n",
         "erp",
+        "field data",
         "help center",
         "implementacion",
         "implementaciÃ³n",
@@ -471,23 +515,33 @@ def _has_solution_adjacent_signal(text: str) -> bool:
         "integraciÃ³n",
         "knowledge base",
         "onboarding",
+        "on-the-job",
+        "process automation",
+        "reporting",
+        "scada",
         "runbook",
         "soporte",
         "support",
         "ticket",
         "whatsapp",
         "workflow",
+        "training",
+        "entrenamiento",
     )
     return any(keyword in text for keyword in solution_keywords)
 
 
 def _has_stable_operational_surface(text: str) -> bool:
     stable_markers = (
+        "adopcion",
+        "anomal",
         "api",
+        "automatizaci",
         "crm",
         "documentaci",
         "documentation",
         "erp",
+        "field data",
         "help center",
         "implementation",
         "implementacion",
@@ -506,12 +560,28 @@ def _has_stable_operational_surface(text: str) -> bool:
         "soporte",
         "support",
         "workflow",
+        "scada",
+        "training",
+        "entrenamiento",
     )
     return any(marker in text for marker in stable_markers)
 
 
 def _is_hiring_or_role_primary_signal(text: str) -> bool:
     if not _keyword_hits(text, HIRING_PRIMARY_KEYWORDS):
+        return False
+    hard_hiring_markers = (
+        "career",
+        "careers",
+        "contratando",
+        "hiring",
+        "jobs",
+        "open role",
+        "roles",
+        "vacante",
+        "vacantes",
+    )
+    if "on-the-job" in text and not any(marker in text for marker in hard_hiring_markers):
         return False
     role_context = (
         "career",
@@ -571,8 +641,12 @@ def _is_time_sensitive_primary_signal(text: str) -> bool:
 
 def _is_adjacent_ai_vendor(text: str) -> bool:
     markers = (
+        "adopcion de ia",
+        "adopciÃ³n de ia",
         "agentes de ia",
+        "ai adoption",
         "ai agents",
+        "ai training",
         "ai at the core",
         "ai is their core",
         "already builds ai",
@@ -582,6 +656,7 @@ def _is_adjacent_ai_vendor(text: str) -> bool:
         "plataforma de ai",
         "plataforma de ia",
         "sells ai",
+        "entrenamiento en ia",
         "vende adopcion de ia",
     )
     return any(marker in text for marker in markers)

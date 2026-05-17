@@ -146,6 +146,14 @@ def write_enrich_and_draft_result(state: LeadState) -> dict[str, object]:
             state.get("lead_id") or state.get("lead", {}).get("lead_id"),
             state.get("quality_score"),
         )
+        repair_count = int(state.get("draft_repair_count") or 0)
+        if repair_count:
+            return {
+                "agent_note": (
+                    state.get("agent_note", "Draft needs revision.")
+                    + f" Auto-repair attempts: {repair_count}."
+                )
+            }
         return {"agent_note": state.get("agent_note", "Draft needs revision.")}
     logger.info(
         "draft.write_result.done run_id=%s lead_id=%s fit_score=%s quality_score=%s",

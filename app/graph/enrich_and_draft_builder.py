@@ -7,6 +7,7 @@ from app.graph.draft_guardrails import (
     language_validator,
     llm_language_validator_node,
     route_after_guardrail,
+    route_after_guardrail_or_repair,
     tone_checker,
     verify_claims_against_evidence,
 )
@@ -21,6 +22,7 @@ from app.graph.nodes import (
     draft_message_node,
     evaluate_draft,
     load_playbook_node,
+    repair_draft_node,
     select_message_angle,
 )
 from app.graph.routing import route_after_evaluation
@@ -71,6 +73,7 @@ def build_enrich_and_draft_graph(
     graph.add_node("inject_context", inject_enrichment_context)
     graph.add_node("select_message_angle", select_message_angle)
     graph.add_node("draft_message", draft_message_node(llm))
+    graph.add_node("repair_draft", repair_draft_node(llm))
     graph.add_node("verify_claims", verify_claims_against_evidence)
     graph.add_node(
         "language_validator",
@@ -105,20 +108,23 @@ def build_enrich_and_draft_graph(
     )
     graph.add_conditional_edges(
         "language_validator",
-        route_after_guardrail,
+        route_after_guardrail_or_repair,
         {
             "next": "tone_checker",
+            "repair_draft": "repair_draft",
             "write_result": "write_result",
         },
     )
     graph.add_conditional_edges(
         "tone_checker",
-        route_after_guardrail,
+        route_after_guardrail_or_repair,
         {
             "next": "evaluate_draft",
+            "repair_draft": "repair_draft",
             "write_result": "write_result",
         },
     )
+    graph.add_edge("repair_draft", "verify_claims")
     graph.add_conditional_edges(
         "evaluate_draft",
         route_after_evaluation,

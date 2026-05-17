@@ -98,6 +98,9 @@ def test_email_drafts_headers_expected() -> None:
     assert "email_draft" in EMAIL_DRAFTS_HEADERS
     assert "draft_status" in EMAIL_DRAFTS_HEADERS
     assert "quality_score" in EMAIL_DRAFTS_HEADERS
+    assert "selected_signal" in EMAIL_DRAFTS_HEADERS
+    assert "solution_fit_type" in EMAIL_DRAFTS_HEADERS
+    assert "draft_repair_count" in EMAIL_DRAFTS_HEADERS
     assert "gmail_draft_id" in EMAIL_DRAFTS_HEADERS
     assert "sent_manually" in EMAIL_DRAFTS_HEADERS
     assert "reply_status" in EMAIL_DRAFTS_HEADERS

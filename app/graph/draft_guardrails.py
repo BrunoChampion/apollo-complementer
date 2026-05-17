@@ -185,6 +185,20 @@ def tone_checker(state: LeadState) -> dict[str, Any]:
                 "clear operational surface instead of listing many capabilities."
             ),
         }
+    if _looks_like_trivial_ai_pitch(text):
+        return {
+            "status": "needs_revision",
+            "quality_issues": state.get("quality_issues", []) + [
+                (
+                    "NYVEX angle should require real architecture, not a one-off "
+                    "ChatGPT task"
+                )
+            ],
+            "agent_note": (
+                "Draft needs revision: NYVEX should be positioned around systems, "
+                "integrations, rules, traceability or repeatable workflows."
+            ),
+        }
     playbook = state.get("playbook", {})
     message_rules = playbook.get("message_rules", {}) if isinstance(playbook, dict) else {}
     avoid_phrases = list(BASE_AVOID_PHRASES)
@@ -266,6 +280,36 @@ def _looks_like_enumerative_opener(text: str) -> bool:
     return len(opener.split()) > 32 and comma_count >= 2
 
 
+def _looks_like_trivial_ai_pitch(text: str) -> bool:
+    trivial_markers = (
+        "hacer un checklist",
+        "generar checklist",
+        "generar un checklist",
+        "generar notas",
+        "hacer notas",
+        "resumir llamadas",
+        "resumir notas",
+        "resumen de llamadas",
+        "tomar notas",
+    )
+    if not any(marker in text for marker in trivial_markers):
+        return False
+    system_markers = (
+        "api",
+        "base de conocimiento",
+        "crm",
+        "datos vivos",
+        "herramientas",
+        "integraciones",
+        "permisos",
+        "reglas",
+        "repetible",
+        "trazabilidad",
+        "workflow",
+    )
+    return not any(marker in text for marker in system_markers)
+
+
 def _extract_opener_sentence(text: str) -> str:
     match = re.search(r"\bvi que\b(.{0,360}?)(?:\.|\n\n|\r\n\r\n)", text, flags=re.DOTALL)
     if not match:
@@ -275,6 +319,48 @@ def _extract_opener_sentence(text: str) -> str:
 
 def route_after_guardrail(state: LeadState) -> str:
     return "write_result" if state.get("status") == "needs_revision" else "next"
+
+
+def route_after_guardrail_or_repair(state: LeadState) -> str:
+    if state.get("status") != "needs_revision":
+        return "next"
+    if _should_auto_repair(state):
+        return "repair_draft"
+    return "write_result"
+
+
+def _should_auto_repair(state: LeadState) -> bool:
+    if int(state.get("draft_repair_count") or 0) >= 1:
+        return False
+    text = " ".join(
+        [
+            str(state.get("agent_note") or ""),
+            " ".join(str(issue) for issue in state.get("quality_issues", []) if issue),
+        ]
+    ).lower()
+    hard_blocks = (
+        "unsupported country",
+        "country is unsupported",
+        "unsupported factual claim",
+        "unsupported claim",
+    )
+    if any(marker in text for marker in hard_blocks):
+        return False
+    repairable_markers = (
+        "antecedent",
+        "company-first",
+        "generic outbound tone",
+        "language should be spanish",
+        "listing many capabilities",
+        "not a product catalog",
+        "operational surface",
+        "opener",
+        "role-first",
+        "spanglish",
+        "stable operational signal",
+        "trivial",
+    )
+    return any(marker in text for marker in repairable_markers)
 
 
 def _draft_text(state: LeadState) -> str:

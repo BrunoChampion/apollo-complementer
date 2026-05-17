@@ -132,6 +132,21 @@ class OpenAIDraftLLM:
                 "reports, funding amounts or customer counts unless they are explicitly "
                 "needed and exactly supported by evidence_items; avoid using them as the "
                 "first sentence. "
+                "The pain line must imply a real system opportunity for NYVEX: data "
+                "from live tools, rules, permissions, traceability, human review, "
+                "integrations, repeatable workflows, or knowledge retrieval across "
+                "documentation/tickets/CRM/product data. Do not frame a trivial task "
+                "that a user could solve by pasting text into ChatGPT, such as merely "
+                "summarizing notes or making a one-off checklist. "
+                "Use controlled variety by `solution_fit_type`: for direct_rag_fit, "
+                "focus on documentation, support, tickets, onboarding and knowledge "
+                "retrieval; for data_ops_fit, focus on turning data, rules and "
+                "exceptions into repeatable decisions; for agentic_workflow_fit, focus "
+                "on handoffs, actions, routing and workflow execution; for "
+                "exploratory_custom_solution, make it explicit that NYVEX would explore "
+                "hypotheses instead of forcing a generic AI implementation. Do not use "
+                "the exact same friction sentence for every prospect when a more precise "
+                "fit-specific version is available. "
                 "Do not auto-send language. "
                 f"Keep body under {max_words} words."
             ),
@@ -161,6 +176,58 @@ class OpenAIDraftLLM:
             },
         )
         return _limit_words(str(result.get("body") or previous_draft), max_words)
+
+    def auto_repair_email(
+        self,
+        *,
+        lead: LeadRow,
+        subject: str,
+        body: str,
+        issues: list[str],
+        evidence_items: list[dict[str, object]],
+        selected_signal: str | None,
+        message_angle: str | None,
+        solution_fit_type: str | None,
+        nyvex_positioning: str | None,
+        max_words: int,
+    ) -> tuple[str, str]:
+        result = self._json_response(
+            (
+                "Repair this NYVEX cold outbound email. Return JSON with keys "
+                "`subject` and `body`. Fix only the listed issues. Do not add new "
+                "claims, numbers, recency, customers, funding, certifications, or "
+                "personal facts. Keep the email in natural professional Spanish. "
+                "Preserve the soft CTA. The opener must be one company-first sentence "
+                "using `selected_operational_signal`, grouped into one clear durable "
+                "operational surface rather than a product catalog. Avoid role-first "
+                "phrasing, hiring/funding/event openers, and excessive Spanglish. "
+                "The pain line must imply a real system opportunity for NYVEX: data "
+                "from live tools, rules, permissions, traceability, human review, "
+                "integrations, repeatable workflows, or knowledge retrieval across "
+                "documentation/tickets/CRM/product data. Do not frame a trivial task "
+                "that a user could solve by pasting text into ChatGPT, such as merely "
+                "summarizing notes or making a one-off checklist. Use controlled "
+                "variety by `solution_fit_type` and make the friction line specific "
+                "to the selected fit. Use `nyvex_positioning` as the credibility line "
+                "when provided. "
+                f"Keep body under {max_words} words."
+            ),
+            {
+                "lead": lead.model_dump(mode="json"),
+                "subject": subject,
+                "body": body,
+                "issues": issues,
+                "evidence_items": evidence_items,
+                "selected_operational_signal": selected_signal,
+                "message_angle": message_angle,
+                "solution_fit_type": solution_fit_type,
+                "nyvex_positioning": nyvex_positioning,
+                "max_words": max_words,
+            },
+        )
+        repaired_subject = str(result.get("subject") or subject)
+        repaired_body = _limit_words(str(result.get("body") or body), max_words)
+        return repaired_subject, repaired_body
 
     def validate_email_language(
         self,
@@ -212,6 +279,10 @@ class OpenAIDraftLLM:
                 "milestone when a safer operational company characteristic is available. "
                 "Prefer stable operational surfaces over precise claims that are easy to "
                 "overstate. "
+                "Reject if the NYVEX angle sounds like a trivial one-off ChatGPT task "
+                "instead of a system that would justify technical implementation: live "
+                "data/tool connections, rules, permissions, traceability, human review, "
+                "integrations, repeatable workflows, or retrieval over company knowledge. "
                 f"The body must be under {max_words} words. If any issue is present, "
                 "`passes` must be false and `issues` must list the concrete problems. "
                 "Do not rewrite the draft in this validation step."

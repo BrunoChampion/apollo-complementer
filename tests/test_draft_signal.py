@@ -246,3 +246,54 @@ def test_draft_signal_sets_data_ops_fit_for_non_ai_data_workflow() -> None:
     assert assessment.solution_fit_type == "data_ops_fit"
     assert assessment.nyvex_positioning
     assert "ordenar datos" in assessment.nyvex_positioning
+
+
+def test_draft_signal_accepts_energy_data_operations_signal() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-energy",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Delfos Energy",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=88,
+        evidence_items=[
+            {
+                "claim": (
+                    "Delfos centralizes SCADA and field data, automates KPIs and "
+                    "detects anomalies for renewable asset operations"
+                ),
+                "source_type": "manual_context",
+                "confidence": 86,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is True
+    assert assessment.solution_fit_type == "data_ops_fit"
+
+
+def test_draft_signal_accepts_ai_adoption_company_as_exploratory() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-training",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Teamcubation",
+        company_summary="Teamcubation provides AI training and adoption programs.",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=88,
+        evidence_items=[
+            {
+                "claim": (
+                    "Teamcubation works on AI adoption, process automation and "
+                    "on-the-job training for enterprise teams"
+                ),
+                "source_type": "manual_context",
+                "confidence": 86,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is True
+    assert assessment.solution_fit_type == "exploratory_custom_solution"
