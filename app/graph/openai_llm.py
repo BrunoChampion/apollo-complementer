@@ -8,6 +8,36 @@ import httpx
 from app.core.langfuse import get_tracer
 from app.domain.leads import LeadRow
 
+EMAIL_DRAFT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "subject": {"type": "string"},
+        "body": {"type": "string"},
+    },
+    "required": ["subject", "body"],
+    "additionalProperties": False,
+}
+
+EMAIL_REVISION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "body": {"type": "string"},
+    },
+    "required": ["body"],
+    "additionalProperties": False,
+}
+
+EMAIL_VALIDATION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "passes": {"type": "boolean"},
+        "issues": {"type": "array", "items": {"type": "string"}},
+        "reason": {"type": "string"},
+    },
+    "required": ["passes", "issues", "reason"],
+    "additionalProperties": False,
+}
+
 
 class OpenAIDraftLLM:
     def __init__(
@@ -159,6 +189,8 @@ class OpenAIDraftLLM:
                 f"Keep body under {max_words} words."
             ),
             payload,
+            schema_name="email_draft",
+            schema=EMAIL_DRAFT_SCHEMA,
         )
         subject = str(result.get("subject") or f"Idea para {lead.company_name}")
         body = str(result.get("body") or "")
@@ -182,6 +214,8 @@ class OpenAIDraftLLM:
                 "revision_instruction": revision_instruction,
                 "max_words": max_words,
             },
+            schema_name="email_revision",
+            schema=EMAIL_REVISION_SCHEMA,
         )
         return _limit_words(str(result.get("body") or previous_draft), max_words)
 
@@ -238,6 +272,8 @@ class OpenAIDraftLLM:
                 "message_brief": message_brief or {},
                 "max_words": max_words,
             },
+            schema_name="email_draft_repair",
+            schema=EMAIL_DRAFT_SCHEMA,
         )
         repaired_subject = str(result.get("subject") or subject)
         repaired_body = _limit_words(str(result.get("body") or body), max_words)
@@ -309,6 +345,8 @@ class OpenAIDraftLLM:
                 "message_angle": message_angle,
                 "max_words": max_words,
             },
+            schema_name="email_validation",
+            schema=EMAIL_VALIDATION_SCHEMA,
         )
         return {
             "passes": bool(result.get("passes")),
@@ -316,12 +354,20 @@ class OpenAIDraftLLM:
             "reason": str(result.get("reason") or ""),
         }
 
-    def _text_response(self, instructions: str, payload: dict[str, Any]) -> str:
-        response = self._responses_create(instructions=instructions, payload=payload)
-        return _extract_output_text(response).strip()
-
-    def _json_response(self, instructions: str, payload: dict[str, Any]) -> dict[str, Any]:
-        text = self._text_response(instructions, payload)
+    def _json_response(
+        self,
+        instructions: str,
+        payload: dict[str, Any],
+        *,
+        schema_name: str,
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        text = self._text_response(
+            instructions,
+            payload,
+            schema_name=schema_name,
+            schema=schema,
+        )
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError:
@@ -334,7 +380,30 @@ class OpenAIDraftLLM:
             raise ValueError("OpenAI response was not a JSON object.")
         return parsed
 
-    def _responses_create(self, *, instructions: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def _text_response(
+        self,
+        instructions: str,
+        payload: dict[str, Any],
+        *,
+        schema_name: str | None = None,
+        schema: dict[str, Any] | None = None,
+    ) -> str:
+        response = self._responses_create(
+            instructions=instructions,
+            payload=payload,
+            schema_name=schema_name,
+            schema=schema,
+        )
+        return _extract_output_text(response).strip()
+
+    def _responses_create(
+        self,
+        *,
+        instructions: str,
+        payload: dict[str, Any],
+        schema_name: str | None = None,
+        schema: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         body = {
             "model": self.model,
             "reasoning": {"effort": self.reasoning_effort},
@@ -354,6 +423,15 @@ class OpenAIDraftLLM:
                 },
             ],
         }
+        if schema_name and schema:
+            body["text"] = {
+                "format": {
+                    "type": "json_schema",
+                    "name": schema_name,
+                    "schema": schema,
+                    "strict": True,
+                }
+            }
         tracer = get_tracer()
         with tracer.generation(
             "draft.openai.responses",

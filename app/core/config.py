@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     fake_sheet_path: str = "examples/leads_demo.csv"
     llm_provider: str = "deterministic"
     openai_api_key: str | None = None
-    openai_model: str = "gpt-5.5"
-    openai_reasoning_effort: str = "medium"
+    openai_model: str = "gpt-5.4-mini"
+    openai_reasoning_effort: str = "low"
     openai_base_url: str = "https://api.openai.com/v1"
     google_application_credentials: str | None = None
     google_sheets_default_tab: str = "Leads"
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
 
     # Enrichment
     enrichment_provider: str = "openai"
-    enrichment_model: str = "gpt-5.5"
+    enrichment_model: str = "gpt-5.4-mini"
     enrichment_reasoning_effort: str = "medium"
     enrichment_max_urls_per_lead: int = 5
     enrichment_http_timeout_seconds: int = 20
