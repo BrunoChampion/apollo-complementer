@@ -113,6 +113,56 @@ def test_draft_signal_prefers_operational_surface_over_hiring_trigger() -> None:
     assert "Operation 70" in assessment.why_now_trigger
 
 
+def test_draft_signal_blocks_hiring_roles_even_with_operational_titles() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-roles",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Vambe",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": (
+                    "Vambe is hiring Engagement Manager, Operations Engineer, "
+                    "Onboarding and Customer Success roles in Chile and Mexico"
+                ),
+                "source_type": "careers",
+                "confidence": 90,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is False
+    assert "operational signal" in assessment.reason
+
+
+def test_draft_signal_blocks_careers_signal_even_when_platform_is_mentioned() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-careers-platform",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Vambe",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": (
+                    "Vambe is hiring Customer Success and Onboarding roles for its "
+                    "conversational AI platform in Chile"
+                ),
+                "source_type": "careers",
+                "confidence": 90,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is False
+    assert "operational signal" in assessment.reason
+
+
 def test_draft_signal_prefers_product_surface_over_soc_milestone() -> None:
     result = EnrichmentResult(
         enrichment_id="enr-5",
@@ -143,3 +193,56 @@ def test_draft_signal_prefers_product_surface_over_soc_milestone() -> None:
     assert assessment.signal_claim
     assert "digital banking channels" in assessment.signal_claim
     assert "SOC 2" not in assessment.signal_claim
+
+
+def test_draft_signal_sets_exploratory_fit_for_ai_vendor() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-ai",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Celes",
+        company_summary="Celes is a platform of AI for retail supply chain.",
+        possible_ai_use_case=(
+            "Because Celes already has AI at the core, NYVEX should explore internal "
+            "implementation workflows rather than generic AI."
+        ),
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": "Celes conecta ERP, POS and WMS data for retail operations",
+                "source_type": "manual_context",
+                "confidence": 85,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is True
+    assert assessment.solution_fit_type == "exploratory_custom_solution"
+    assert assessment.nyvex_positioning
+    assert "explorar hipótesis concretas" in assessment.nyvex_positioning
+
+
+def test_draft_signal_sets_data_ops_fit_for_non_ai_data_workflow() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-data",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Rebill",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": "Rebill handles local payments, subscriptions and ERP webhooks",
+                "source_type": "manual_context",
+                "confidence": 85,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is True
+    assert assessment.solution_fit_type == "data_ops_fit"
+    assert assessment.nyvex_positioning
+    assert "ordenar datos" in assessment.nyvex_positioning

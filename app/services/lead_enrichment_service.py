@@ -1,11 +1,13 @@
 import logging
 from typing import Any
 
+from app.domain.enrichment import EnrichmentResult
 from app.domain.leads import LeadRow, LeadStatus
 from app.graph.enrichment_builder import build_enrichment_graph
 from app.integrations.sheets.base import SheetClient
 from app.integrations.sheets.constants import ENRICHMENT_TAB, LEADS_TAB
 from app.services.enrich_and_draft_service import _parse_enrichment_result
+from app.services.enrichment_review import apply_review_decision
 from app.services.enrichment_sheet_writer import EnrichmentSheetWriter
 from app.services.readiness import validate_readiness
 
@@ -170,12 +172,20 @@ class LeadEnrichmentService:
 
             result_dict = output.get("enrichment_result", {})
             if result_dict:
+                result_dict = self._apply_review_policy(result_dict, lead)
                 self.sheet_writer.append(result_dict)
                 # Update lead status in sheet
                 new_status = result_dict.get("enrichment_status", "needs_review")
                 ready_for_draft = (
                     result_dict.get("recommended_action") == "draft"
                     and not result_dict.get("review_required")
+                )
+                lead_status = (
+                    new_status
+                    if ready_for_draft
+                    else _lead_status_for_recommended_action(
+                        str(result_dict.get("recommended_action") or "")
+                    )
                 )
                 self.sheet_client.update_row(
                     row_number=row.row_number,
@@ -189,7 +199,7 @@ class LeadEnrichmentService:
                         "review_evidence": result_dict.get("review_evidence"),
                         "suggested_action": result_dict.get("suggested_action"),
                         "suggested_action_reason": result_dict.get("suggested_action_reason"),
-                        "status": new_status,
+                        "status": lead_status,
                         "agent_note": output.get("agent_note", ""),
                         "enrichment_result": result_dict,
                     },
@@ -200,7 +210,7 @@ class LeadEnrichmentService:
                     "run_id=%s lead_id=%s status=%s action=%s confidence=%s",
                     run_id,
                     lead.lead_id,
-                    new_status,
+                    lead_status,
                     result_dict.get("recommended_action"),
                     result_dict.get("confidence_score"),
                 )
@@ -230,3 +240,32 @@ class LeadEnrichmentService:
             for row in rows
             if row.values.get("enrichment_id")
         }
+
+    def _apply_review_policy(
+        self,
+        result_dict: dict[str, Any],
+        lead: LeadRow,
+    ) -> dict[str, Any]:
+        try:
+            result = EnrichmentResult.model_validate(result_dict)
+        except Exception as exc:
+            logger.info(
+                "enrichment.run.review_policy.skip_invalid "
+                "lead_id=%s error=%s",
+                lead.lead_id,
+                exc,
+            )
+            return result_dict
+
+        result.user_decision = lead.user_decision
+        result.user_decision_notes = lead.user_decision_notes
+        reviewed = apply_review_decision(result)
+        return reviewed.model_dump(mode="json")
+
+
+def _lead_status_for_recommended_action(recommended_action: str) -> str:
+    if recommended_action == "discard":
+        return LeadStatus.DISCARDED.value
+    if recommended_action == "needs_email_verification":
+        return LeadStatus.NEEDS_EMAIL_VERIFICATION.value
+    return LeadStatus.NEEDS_MANUAL_RESEARCH.value

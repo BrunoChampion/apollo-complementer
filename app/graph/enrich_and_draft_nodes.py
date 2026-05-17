@@ -107,10 +107,13 @@ def gate_draft_on_enrichment(state: LeadState) -> dict[str, object]:
     return {
         "status": "gated_ok",
         "draft_signal_claim": signal.signal_claim,
+        "draft_signal_type": signal.signal_type,
         "draft_friction_hypothesis": signal.friction_hypothesis,
         "draft_signal_reason": signal.reason,
         "draft_why_now_trigger": signal.why_now_trigger,
         "draft_nyvex_relevance": signal.nyvex_relevance,
+        "draft_solution_fit_type": signal.solution_fit_type,
+        "draft_nyvex_positioning": signal.nyvex_positioning,
     }
 
 
@@ -186,6 +189,10 @@ def inject_enrichment_context(state: LeadState) -> dict[str, object]:
         context_parts.append(f"Email Friction: {state.get('draft_friction_hypothesis')}")
     if state.get("draft_nyvex_relevance"):
         context_parts.append(f"NYVEX Relevance: {state.get('draft_nyvex_relevance')}")
+    if state.get("draft_solution_fit_type"):
+        context_parts.append(f"Solution Fit Type: {state.get('draft_solution_fit_type')}")
+    if state.get("draft_nyvex_positioning"):
+        context_parts.append(f"NYVEX Positioning Line: {state.get('draft_nyvex_positioning')}")
     if state.get("draft_why_now_trigger"):
         context_parts.append(
             "Why Now Trigger (optional context only, not the main opener): "
@@ -194,8 +201,10 @@ def inject_enrichment_context(state: LeadState) -> dict[str, object]:
     context_parts.append(
         "Drafting Rule: open with the operational signal, not a hiring/funding/expansion "
         "trigger. The signal must make 'ese tipo de operacion' clear. Frame the pain "
-        "as a general B2B friction rather than diagnosing the company, use sober NYVEX "
-        "credibility when relevant, and close by asking permission to share 2-3 hypotheses."
+        "as a general B2B friction rather than diagnosing the company. Use the NYVEX "
+        "positioning line as flexible credibility: the previous RAG project is proof of "
+        "technical judgment, not necessarily the exact solution for this prospect. Close "
+        "by asking permission to share 2-3 hypotheses."
     )
 
     summary = "\n".join(context_parts) or "No enrichment context available."

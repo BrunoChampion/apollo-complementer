@@ -284,6 +284,7 @@ class EnrichAndDraftService:
         lead: LeadRow,
         run_id: str,
     ) -> dict[str, Any]:
+        enrichment_dict = _parse_enrichment_result(lead.enrichment_result)
         readiness = validate_readiness(lead)
         if not readiness.ready_for_enrichment:
             status = (
@@ -300,10 +301,10 @@ class EnrichAndDraftService:
                     f"{readiness.identity_validation_reason}; "
                     f"{readiness.icp_status}: {readiness.icp_score_reason}"
                 ),
+                "enrichment_result": enrichment_dict,
                 **readiness.as_update(),
             }
 
-        enrichment_dict = _parse_enrichment_result(lead.enrichment_result)
         if not enrichment_dict:
             return {
                 "lead_id": lead.lead_id,
@@ -410,7 +411,8 @@ class EnrichAndDraftService:
             **{
                 **readiness.as_update(),
                 "ready_for_draft": bool(draft_output.get("email_draft"))
-                and draft_output.get("status") not in {"needs_manual_research", "insufficient_data", "error"},
+                and draft_output.get("status")
+                not in {"needs_manual_research", "insufficient_data", "error"},
             },
         }
 

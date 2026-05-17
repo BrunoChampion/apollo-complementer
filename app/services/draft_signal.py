@@ -50,6 +50,7 @@ OPERATIONAL_SIGNAL_KEYWORDS = (
 )
 
 SUPPORTING_TRIGGER_KEYWORDS = (
+    "contratando",
     "expansion",
     "expansión",
     "funding",
@@ -59,6 +60,32 @@ SUPPORTING_TRIGGER_KEYWORDS = (
     "levantó",
     "raised",
     "series",
+)
+
+TIME_SENSITIVE_KEYWORDS = (
+    "hace ",
+    "last month",
+    "last week",
+    "recent",
+    "reciente",
+    "recently",
+    "today",
+    "yesterday",
+)
+
+HIRING_PRIMARY_KEYWORDS = (
+    "career",
+    "careers",
+    "contratando",
+    "hiring",
+    "job",
+    "jobs",
+    "nuevo talento",
+    "nuevos talentos",
+    "open role",
+    "roles",
+    "vacante",
+    "vacantes",
 )
 
 MILESTONE_OR_CREDENTIAL_KEYWORDS = (
@@ -88,9 +115,12 @@ DECORATIVE_ONLY_KEYWORDS = (
 class DraftSignalAssessment:
     ready: bool
     signal_claim: str | None = None
+    signal_type: str | None = None
     friction_hypothesis: str | None = None
     why_now_trigger: str | None = None
     nyvex_relevance: str | None = None
+    solution_fit_type: str | None = None
+    nyvex_positioning: str | None = None
     reason: str = ""
 
 
@@ -119,11 +149,14 @@ def assess_draft_signal(result: EnrichmentResult) -> DraftSignalAssessment:
     return DraftSignalAssessment(
         ready=True,
         signal_claim=signal_text,
+        signal_type=_signal_type(selected),
         friction_hypothesis=_friction_from_result(result, selected),
         why_now_trigger=_clean_trigger(trigger.claim, result.company_name)
         if trigger
         else None,
         nyvex_relevance=_nyvex_relevance_from_signal(result, selected),
+        solution_fit_type=_solution_fit_type(result, selected),
+        nyvex_positioning=_nyvex_positioning(result, selected),
         reason="Concrete operational signal found for draft.",
     )
 
@@ -164,6 +197,15 @@ def _select_signal_evidence(evidence_items: list[EvidenceItem]) -> EvidenceItem 
         milestone_hits = _keyword_hits(text, MILESTONE_OR_CREDENTIAL_KEYWORDS)
         decorative_hits = _keyword_hits(text, DECORATIVE_ONLY_KEYWORDS)
         if not operational_hits:
+            continue
+        if (
+            item.source_type == EvidenceSourceType.CAREERS
+            and _keyword_hits(text, HIRING_PRIMARY_KEYWORDS)
+        ):
+            continue
+        if _is_hiring_or_role_primary_signal(text):
+            continue
+        if _is_time_sensitive_primary_signal(text) and not _has_stable_operational_surface(text):
             continue
         if trigger_hits and not _has_solution_adjacent_signal(text):
             continue
@@ -208,9 +250,14 @@ def _select_why_now_trigger(
         ).lower()
         trigger_hits = _keyword_hits(text, SUPPORTING_TRIGGER_KEYWORDS)
         milestone_hits = _keyword_hits(text, MILESTONE_OR_CREDENTIAL_KEYWORDS)
-        if not trigger_hits and not milestone_hits:
+        time_hits = _keyword_hits(text, TIME_SENSITIVE_KEYWORDS)
+        hiring_hits = _keyword_hits(text, HIRING_PRIMARY_KEYWORDS)
+        if not trigger_hits and not milestone_hits and not time_hits and not hiring_hits:
             continue
-        score = (trigger_hits + milestone_hits) * 20 + min(max(item.confidence, 0), 100) // 10
+        score = (
+            (trigger_hits + milestone_hits + time_hits + hiring_hits) * 20
+            + min(max(item.confidence, 0), 100) // 10
+        )
         scored.append((score, item))
     if not scored:
         return None
@@ -312,6 +359,96 @@ def _nyvex_relevance_from_signal(
     return "explorar hipotesis de IA/RAG/agentes sobre conocimiento operativo disperso"
 
 
+def _solution_fit_type(result: EnrichmentResult, signal: EvidenceItem) -> str:
+    text = _combined_context(result, signal)
+    if _is_adjacent_ai_vendor(text):
+        return "exploratory_custom_solution"
+    if any(
+        keyword in text
+        for keyword in (
+            "base de conocimiento",
+            "documentation",
+            "documentacion",
+            "documentaci",
+            "help center",
+            "knowledge base",
+            "runbook",
+            "soporte",
+            "support",
+            "ticket",
+        )
+    ):
+        return "direct_rag_fit"
+    if any(
+        keyword in text
+        for keyword in (
+            "conciliaci",
+            "data",
+            "datos",
+            "erp",
+            "logistica",
+            "logistics",
+            "pagos",
+            "payment",
+            "pos",
+            "reconciliation",
+            "supply chain",
+            "wms",
+        )
+    ):
+        return "data_ops_fit"
+    if any(
+        keyword in text
+        for keyword in (
+            "agent",
+            "agente",
+            "automatizaci",
+            "automation",
+            "crm",
+            "customer success",
+            "implementation",
+            "implementaci",
+            "onboarding",
+            "workflow",
+        )
+    ):
+        return "agentic_workflow_fit"
+    return "exploratory_custom_solution"
+
+
+def _nyvex_positioning(result: EnrichmentResult, signal: EvidenceItem) -> str:
+    fit = _solution_fit_type(result, signal)
+    if fit == "direct_rag_fit":
+        return (
+            "Desde NYVEX trabajé recientemente en un sistema de IA/RAG para una "
+            "empresa B2B de software de RRHH, enfocado en convertir conocimiento "
+            "disperso en flujos operativos reales."
+        )
+    if fit == "data_ops_fit":
+        return (
+            "Desde NYVEX vengo trabajando en sistemas de IA aplicados a procesos "
+            "reales, incluyendo IA/RAG y agentes cuando ayudan a ordenar datos, "
+            "criterios y flujos operativos."
+        )
+    if fit == "agentic_workflow_fit":
+        return (
+            "Desde NYVEX vengo trabajando en sistemas de IA aplicados a procesos "
+            "reales, incluyendo agentes y RAG cuando sirven para convertir criterio "
+            "operativo en flujos reutilizables."
+        )
+    return (
+        "Desde NYVEX vengo trabajando en sistemas de IA aplicados a procesos reales; "
+        "mi interés sería explorar hipótesis concretas, no vender una solución genérica."
+    )
+
+
+def _signal_type(item: EvidenceItem) -> str:
+    text = " ".join(part for part in (item.claim, item.quote_or_summary or "") if part).lower()
+    if _is_time_sensitive_primary_signal(text):
+        return "time_sensitive_operational_signal"
+    return "durable_operational_signal"
+
+
 def _has_solution_adjacent_signal(text: str) -> bool:
     solution_keywords = (
         "academy",
@@ -342,6 +479,125 @@ def _has_solution_adjacent_signal(text: str) -> bool:
         "workflow",
     )
     return any(keyword in text for keyword in solution_keywords)
+
+
+def _has_stable_operational_surface(text: str) -> bool:
+    stable_markers = (
+        "api",
+        "crm",
+        "documentaci",
+        "documentation",
+        "erp",
+        "help center",
+        "implementation",
+        "implementacion",
+        "logistica",
+        "logistics",
+        "marketplace",
+        "onboarding",
+        "pagos",
+        "payments",
+        "platform",
+        "plataforma",
+        "product",
+        "producto",
+        "solution",
+        "soluci",
+        "soporte",
+        "support",
+        "workflow",
+    )
+    return any(marker in text for marker in stable_markers)
+
+
+def _is_hiring_or_role_primary_signal(text: str) -> bool:
+    if not _keyword_hits(text, HIRING_PRIMARY_KEYWORDS):
+        return False
+    role_context = (
+        "career",
+        "careers",
+        "engineer",
+        "head of",
+        "job",
+        "jobs",
+        "manager",
+        "role",
+        "roles",
+        "specialist",
+        "talento",
+        "talentos",
+        "vacante",
+        "vacantes",
+    )
+    product_context = (
+        "ayuda",
+        "helps",
+        "ofrece",
+        "offers",
+        "platform",
+        "plataforma",
+        "product",
+        "producto",
+        "serves",
+        "solution",
+        "soluci",
+        "trabaja con",
+        "works with",
+    )
+    return any(marker in text for marker in role_context) and not any(
+        marker in text for marker in product_context
+    )
+
+
+def _is_time_sensitive_primary_signal(text: str) -> bool:
+    primary_markers = (
+        "announced",
+        "anunci",
+        "event",
+        "evento",
+        "funding",
+        "hiring",
+        "lanz",
+        "launched",
+        "levant",
+        "raised",
+        "reciente",
+        "recently",
+        "series ",
+        "summit",
+    )
+    return any(marker in text for marker in primary_markers)
+
+
+def _is_adjacent_ai_vendor(text: str) -> bool:
+    markers = (
+        "agentes de ia",
+        "ai agents",
+        "ai at the core",
+        "ai is their core",
+        "already builds ai",
+        "already sells ai",
+        "conversational ai",
+        "ia conversacional",
+        "plataforma de ai",
+        "plataforma de ia",
+        "sells ai",
+        "vende adopcion de ia",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _combined_context(result: EnrichmentResult, signal: EvidenceItem) -> str:
+    parts = [
+        signal.claim,
+        signal.quote_or_summary or "",
+        result.company_summary or "",
+        result.operational_pain_hypothesis or "",
+        result.possible_ai_use_case or "",
+        result.personalization_angle or "",
+        " ".join(result.risk_flags or []),
+    ]
+    return " ".join(part for part in parts if part).lower()
 
 
 def _keyword_hits(text: str, keywords: tuple[str, ...]) -> int:

@@ -1,5 +1,10 @@
 from app.domain.enrichment import EnrichmentResult, EnrichmentStatus, RecommendedAction
+from app.domain.leads import LeadRow, LeadStatus
 from app.services.enrichment_review import apply_review_decision
+from app.services.lead_enrichment_service import (
+    LeadEnrichmentService,
+    _lead_status_for_recommended_action,
+)
 
 
 def test_needs_review_blocks_draft_and_explains_role_transition() -> None:
@@ -155,3 +160,55 @@ def test_explicit_company_size_conflict_still_forces_review() -> None:
     assert updated.review_required is True
     assert updated.review_category == "company_size_conflict"
     assert updated.recommended_action == RecommendedAction.NEEDS_MANUAL_RESEARCH
+
+
+def test_company_above_200_exception_forces_review() -> None:
+    result = EnrichmentResult(
+        enrichment_id="e9",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        recommended_action=RecommendedAction.DRAFT,
+        risk_flags=[
+            "company above 200 employees needs strong exception",
+        ],
+    )
+
+    updated = apply_review_decision(result)
+
+    assert updated.review_required is True
+    assert updated.review_category == "company_size_conflict"
+    assert updated.suggested_action == "needs_more_context"
+    assert updated.recommended_action == RecommendedAction.NEEDS_MANUAL_RESEARCH
+
+
+def test_lead_enrichment_service_applies_review_policy_before_sheet_write() -> None:
+    service = object.__new__(LeadEnrichmentService)
+    lead = LeadRow(
+        lead_id="lead_200",
+        company_name="RAPIBOY",
+        status="ready_for_enrichment",
+    )
+    result_dict = {
+        "enrichment_id": "enrich_200",
+        "lead_id": "lead_200",
+        "company_name": "RAPIBOY",
+        "enrichment_status": EnrichmentStatus.ENRICHED.value,
+        "recommended_action": RecommendedAction.DRAFT.value,
+        "risk_flags": ["company above 200 employees needs strong exception"],
+    }
+
+    reviewed = service._apply_review_policy(result_dict, lead)
+
+    assert reviewed["recommended_action"] == RecommendedAction.NEEDS_MANUAL_RESEARCH.value
+    assert reviewed["review_required"] is True
+    assert reviewed["review_category"] == "company_size_conflict"
+
+
+def test_lead_status_for_recommended_action_keeps_blocked_leads_out_of_drafting() -> None:
+    assert (
+        _lead_status_for_recommended_action(RecommendedAction.NEEDS_MANUAL_RESEARCH.value)
+        == LeadStatus.NEEDS_MANUAL_RESEARCH.value
+    )
+    assert (
+        _lead_status_for_recommended_action(RecommendedAction.DISCARD.value)
+        == LeadStatus.DISCARDED.value
+    )

@@ -22,6 +22,8 @@ class DraftLLM(Protocol):
         selected_signal: str | None,
         nyvex_relevance: str | None,
         why_now_trigger: str | None,
+        solution_fit_type: str | None,
+        nyvex_positioning: str | None,
         max_words: int,
     ) -> tuple[str, str]: ...
 
@@ -67,6 +69,8 @@ class DeterministicDraftLLM:
         selected_signal: str | None,
         nyvex_relevance: str | None,
         why_now_trigger: str | None,
+        solution_fit_type: str | None,
+        nyvex_positioning: str | None,
         max_words: int,
     ) -> tuple[str, str]:
         first_name = (lead.prospect_name or "hola").split()[0]
@@ -87,10 +91,7 @@ class DeterministicDraftLLM:
             f"Vi que {lead.company_name} {evidence_claim}.\n\n"
             "En empresas B2B con ese tipo de operación suele aparecer una fricción: "
             f"{friction}.\n\n"
-            "Desde NYVEX trabajé recientemente en un sistema de IA/RAG para una empresa "
-            "B2B de software de RRHH, enfocado justamente en convertir conocimiento "
-            "disperso en flujos "
-            "operativos reales.\n\n"
+            f"{nyvex_positioning or _default_nyvex_positioning(solution_fit_type)}\n\n"
             f"Creo que podría haber 2-3 ideas aplicables a {lead.company_name}.\n\n"
             "¿Tiene sentido que te las comparta brevemente?"
         )
@@ -218,6 +219,8 @@ def draft_message_node(llm: DraftLLM) -> callable:
             selected_signal=state.get("draft_signal_claim"),
             nyvex_relevance=state.get("draft_nyvex_relevance"),
             why_now_trigger=state.get("draft_why_now_trigger"),
+            solution_fit_type=state.get("draft_solution_fit_type"),
+            nyvex_positioning=state.get("draft_nyvex_positioning"),
             max_words=max_words,
         )
         return {
@@ -309,6 +312,19 @@ def _status_after_quality(state: LeadState, quality_score: int) -> str:
     if state.get("action") == "revise":
         return "revised"
     return "drafted"
+
+
+def _default_nyvex_positioning(solution_fit_type: str | None) -> str:
+    if solution_fit_type == "direct_rag_fit":
+        return (
+            "Desde NYVEX trabajé recientemente en un sistema de IA/RAG para una "
+            "empresa B2B de software de RRHH, enfocado en convertir conocimiento "
+            "disperso en flujos operativos reales."
+        )
+    return (
+        "Desde NYVEX vengo trabajando en sistemas de IA aplicados a procesos reales, "
+        "incluyendo RAG y agentes cuando ayudan a ordenar flujos operativos."
+    )
 
 
 def write_graph_result(state: LeadState) -> dict[str, object]:

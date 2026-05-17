@@ -59,6 +59,8 @@ class OpenAIDraftLLM:
         selected_signal: str | None,
         nyvex_relevance: str | None,
         why_now_trigger: str | None,
+        solution_fit_type: str | None,
+        nyvex_positioning: str | None,
         max_words: int,
     ) -> tuple[str, str]:
         payload = {
@@ -68,6 +70,8 @@ class OpenAIDraftLLM:
             "selected_operational_signal": selected_signal,
             "nyvex_relevance": nyvex_relevance,
             "why_now_trigger": why_now_trigger,
+            "solution_fit_type": solution_fit_type,
+            "nyvex_positioning": nyvex_positioning,
             "max_words": max_words,
         }
         result = self._json_response(
@@ -102,15 +106,22 @@ class OpenAIDraftLLM:
                 "internal processes, compliance operations, or knowledge management. Do not "
                 "use hiring, funding, expansion, events, headcount, or generic growth as the "
                 "main opener. You may use those only as secondary timing context if needed; "
+                "if timing context has no clear date or may be stale, omit it from the draft. "
                 "2) frame the pain as a general "
                 "B2B friction using wording like 'En empresas B2B con ese tipo de "
                 "operación suele aparecer una fricción...', and make sure 'ese tipo de "
                 "operacion' clearly refers to the operational company characteristic in "
                 "the opener, never as a diagnosis of "
-                "the company; 3) add sober credibility: 'Desde NYVEX trabajé "
-                "recientemente en un sistema de IA/RAG para una empresa B2B de software "
-                "de RRHH, enfocado justamente en convertir conocimiento disperso en "
-                "flujos operativos reales.' without exaggerating results; 4) add a "
+                "the company. For the credibility line, use `nyvex_positioning` when "
+                "provided. It may mention the previous IA/RAG project as proof of "
+                "technical judgment, but it must not imply that the exact same RAG "
+                "solution fits every prospect. If the fit is exploratory, say NYVEX "
+                "would explore tailored hypotheses rather than sell a generic solution. "
+                "Do not force the same IA/RAG credibility line when the prospect's "
+                "signal points more naturally to agents, data workflows, integrations "
+                "or a custom exploratory solution; use the provided positioning line "
+                "as the source of truth. 3) Add that sober credibility line without "
+                "exaggerating results. 4) add a "
                 "separate line: 'Creo que podría haber 2-3 ideas aplicables a "
                 "[Empresa].'; 5) close with exactly this soft CTA: '¿Tiene sentido "
                 "que te las comparta brevemente?' "
