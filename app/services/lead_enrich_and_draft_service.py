@@ -265,7 +265,7 @@ class LeadEnrichAndDraftService:
             len(rows),
         )
         results = []
-        drafts_appended = 0
+        email_draft_rows_appended = 0
 
         for row in rows:
             values = dict(row.values)
@@ -327,7 +327,7 @@ class LeadEnrichAndDraftService:
                 result=result,
                 run_id=run_id,
             ):
-                drafts_appended += 1
+                email_draft_rows_appended += 1
             logger.info(
                 "draft.run.lead_done "
                 "run_id=%s lead_id=%s status=%s draft_created=%s quality_score=%s",
@@ -340,10 +340,10 @@ class LeadEnrichAndDraftService:
             results.append(result)
 
         logger.info(
-            "draft.run.done run_id=%s processed=%s drafts_appended=%s",
+            "draft.run.done run_id=%s processed=%s email_draft_rows_appended=%s",
             run_id,
             len(results),
-            drafts_appended,
+            email_draft_rows_appended,
         )
         return results
 
@@ -429,17 +429,50 @@ class LeadEnrichAndDraftService:
         run_id: str,
     ) -> bool:
         email_draft = result.get("email_draft")
+        enrichment_result = _parse_enrichment_result(result.get("enrichment_result"))
         if not email_draft:
             logger.info(
-                "draft.email_drafts.skip_no_draft "
+                "draft.email_drafts.audit_no_draft "
                 "run_id=%s lead_id=%s status=%s agent_note=%s",
                 run_id,
                 lead.lead_id,
                 result.get("status"),
                 result.get("agent_note"),
             )
-            return False
-        enrichment_result = _parse_enrichment_result(result.get("enrichment_result"))
+            self.sheet_client.append_row(
+                tab_name=EMAIL_DRAFTS_TAB,
+                headers=EMAIL_DRAFTS_HEADERS,
+                values={
+                    "run_id": run_id,
+                    "lead_id": lead.lead_id,
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "company_name": lead.company_name,
+                    "prospect_name": lead.prospect_name,
+                    "prospect_title": lead.prospect_title,
+                    "prospect_email": lead.prospect_email,
+                    "email_subject": "",
+                    "email_draft": "",
+                    "draft_status": "blocked_before_draft",
+                    "quality_score": result.get("quality_score"),
+                    "quality_issues": result.get("quality_issues"),
+                    "agent_note": result.get("agent_note"),
+                    "enrichment_id": enrichment_result.get("enrichment_id"),
+                    "gmail_draft_id": "",
+                    "gmail_draft_url": "",
+                    "approved": False,
+                    "sent_manually": "",
+                    "sent_at": "",
+                    "reply_status": "",
+                    "notes": "No draft generated; row added for auditability.",
+                },
+            )
+            logger.info(
+                "draft.email_drafts.audit_appended run_id=%s lead_id=%s status=%s",
+                run_id,
+                lead.lead_id,
+                result.get("status"),
+            )
+            return True
         self.sheet_client.append_row(
             tab_name=EMAIL_DRAFTS_TAB,
             headers=EMAIL_DRAFTS_HEADERS,
