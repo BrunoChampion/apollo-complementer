@@ -56,12 +56,18 @@ class OpenAIDraftLLM:
         lead: LeadRow,
         message_angle: str,
         evidence_items: list[dict[str, object]],
+        selected_signal: str | None,
+        nyvex_relevance: str | None,
+        why_now_trigger: str | None,
         max_words: int,
     ) -> tuple[str, str]:
         payload = {
             "lead": lead.model_dump(mode="json"),
             "message_angle": message_angle,
             "evidence_items": evidence_items,
+            "selected_operational_signal": selected_signal,
+            "nyvex_relevance": nyvex_relevance,
+            "why_now_trigger": why_now_trigger,
             "max_words": max_words,
         }
         result = self._json_response(
@@ -69,14 +75,29 @@ class OpenAIDraftLLM:
                 "Write a cold outbound email draft for NYVEX. Return JSON with keys "
                 "`subject` and `body`. The body must be in Spanish, concise, specific, "
                 "low hype, and must not claim facts not present in the input. "
-                "Use this structure: 1) open with one concrete operational signal from "
-                "evidence_items, not a decorative fact. The opener must be company-first: "
+                "Use this structure: 1) open with `selected_operational_signal` as the "
+                "main concrete operational signal. If selected_operational_signal is "
+                "present, do not choose a different opener from evidence_items. The opener "
+                "must be durable and operational, not a credential, certification, metric, "
+                "date, event, or news-style milestone. Prefer safe openers like '[Empresa] "
+                "trabaja con bancos y cooperativas en canales digitales, onboarding y "
+                "productos de IA para atencion al cliente' over precise claims like "
+                "'acaba de obtener SOC 2 con 100% de cumplimiento'. The opener must be "
+                "company-first: "
                 "after the greeting, the first sentence must start with 'Vi que [Empresa]...' "
                 "or equivalent wording where the company is the subject. Do not open with "
                 "the prospect's role, title, responsibilities, or wording like 'en tu rol "
-                "de COO'; 2) frame the pain as a general "
+                "de COO'. The signal must be an operational company characteristic related "
+                "to a plausible NYVEX exploration: support, onboarding, implementation, "
+                "documentation, CRM/tickets, integrations, data workflows, customer success, "
+                "internal processes, compliance operations, or knowledge management. Do not "
+                "use hiring, funding, expansion, events, headcount, or generic growth as the "
+                "main opener. You may use those only as secondary timing context if needed; "
+                "2) frame the pain as a general "
                 "B2B friction using wording like 'En empresas B2B con ese tipo de "
-                "operación suele aparecer una fricción...', never as a diagnosis of "
+                "operación suele aparecer una fricción...', and make sure 'ese tipo de "
+                "operacion' clearly refers to the operational company characteristic in "
+                "the opener, never as a diagnosis of "
                 "the company; 3) add sober credibility: 'Desde NYVEX trabajé "
                 "recientemente en un sistema de IA/RAG para una empresa B2B de HR "
                 "software, enfocado justamente en convertir conocimiento disperso en "
@@ -87,6 +108,10 @@ class OpenAIDraftLLM:
                 "Do not ask for a 15-minute meeting in the first email. Do not use "
                 "'podría estar atravesando', 'ya hemos logrado solucionar', or "
                 "generic template language. Do not say NYVEX can solve everything. "
+                "Do not mention exact recency, percentages, certifications, compliance "
+                "reports, funding amounts or customer counts unless they are explicitly "
+                "needed and exactly supported by evidence_items; avoid using them as the "
+                "first sentence. "
                 "Do not auto-send language. "
                 f"Keep body under {max_words} words."
             ),
@@ -123,6 +148,8 @@ class OpenAIDraftLLM:
         lead: LeadRow,
         subject: str,
         body: str,
+        evidence_items: list[dict[str, object]],
+        message_angle: str | None,
         max_words: int,
     ) -> dict[str, object]:
         result = self._json_response(
@@ -138,6 +165,20 @@ class OpenAIDraftLLM:
                 "it should use the company as the subject, not the prospect's title, role "
                 "or responsibilities. Reject openers like 'Vi que en tu rol de COO...' "
                 "or 'Vi que como COO...'. "
+                "The opener must name an operational company characteristic that could "
+                "reasonably connect to NYVEX's exploration of AI/software/RAG/agent "
+                "implementations: support, onboarding, implementation, documentation, "
+                "CRM, tickets, integrations, data workflows, customer success, internal "
+                "processes, compliance operations or knowledge management. Reject if the "
+                "main opener is only hiring, funding, expansion, headcount, an event, or "
+                "generic growth. Those triggers may support timing, but they are not the "
+                "operational signal. The phrase 'ese tipo de operacion' must have a clear "
+                "antecedent in the opener. "
+                "Reject if the opener is primarily a certification, compliance report, "
+                "percentage, funding amount, customer count, recency claim or news-style "
+                "milestone when a safer operational company characteristic is available. "
+                "Prefer stable operational surfaces over precise claims that are easy to "
+                "overstate. "
                 f"The body must be under {max_words} words. If any issue is present, "
                 "`passes` must be false and `issues` must list the concrete problems. "
                 "Do not rewrite the draft in this validation step."
@@ -146,6 +187,8 @@ class OpenAIDraftLLM:
                 "lead": lead.model_dump(mode="json"),
                 "subject": subject,
                 "body": body,
+                "evidence_items": evidence_items,
+                "message_angle": message_angle,
                 "max_words": max_words,
             },
         )

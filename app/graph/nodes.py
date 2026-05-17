@@ -19,6 +19,9 @@ class DraftLLM(Protocol):
         lead: LeadRow,
         message_angle: str,
         evidence_items: list[dict[str, object]],
+        selected_signal: str | None,
+        nyvex_relevance: str | None,
+        why_now_trigger: str | None,
         max_words: int,
     ) -> tuple[str, str]: ...
 
@@ -36,6 +39,8 @@ class DraftLLM(Protocol):
         lead: LeadRow,
         subject: str,
         body: str,
+        evidence_items: list[dict[str, object]],
+        message_angle: str | None,
         max_words: int,
     ) -> dict[str, object]: ...
 
@@ -59,10 +64,16 @@ class DeterministicDraftLLM:
         lead: LeadRow,
         message_angle: str,
         evidence_items: list[dict[str, object]],
+        selected_signal: str | None,
+        nyvex_relevance: str | None,
+        why_now_trigger: str | None,
         max_words: int,
     ) -> tuple[str, str]:
         first_name = (lead.prospect_name or "hola").split()[0]
-        signal = select_signal_claim(evidence_items, company_name=lead.company_name)
+        signal = selected_signal or select_signal_claim(
+            evidence_items,
+            company_name=lead.company_name,
+        )
         evidence_claim = signal or "trabaja con operaciones B2B donde el conocimiento pesa mucho"
         friction = (
             message_angle
@@ -106,6 +117,8 @@ class DeterministicDraftLLM:
         lead: LeadRow,
         subject: str,
         body: str,
+        evidence_items: list[dict[str, object]],
+        message_angle: str | None,
         max_words: int,
     ) -> dict[str, object]:
         return {
@@ -201,6 +214,9 @@ def draft_message_node(llm: DraftLLM) -> callable:
             lead=lead,
             message_angle=state["message_angle"],
             evidence_items=state.get("evidence_items", []),
+            selected_signal=state.get("draft_signal_claim"),
+            nyvex_relevance=state.get("draft_nyvex_relevance"),
+            why_now_trigger=state.get("draft_why_now_trigger"),
             max_words=max_words,
         )
         return {

@@ -75,6 +75,31 @@ def test_tone_checker_rejects_role_first_opener() -> None:
     assert "company signal" in result["agent_note"]
 
 
+def test_tone_checker_rejects_trigger_first_opener() -> None:
+    result = tone_checker(
+        _state(
+            "Hola Manuel, vi que Vambe lanzó la Operación 70: 70 nuevos talentos "
+            "en 70 días. En empresas B2B con ese tipo de operación suele aparecer "
+            "una fricción. Tiene sentido que te las comparta brevemente?"
+        )
+    )
+
+    assert result["status"] == "needs_revision"
+    assert "operational surface" in result["agent_note"]
+
+
+def test_tone_checker_rejects_precise_milestone_opener() -> None:
+    result = tone_checker(
+        _state(
+            "Hola Sebastian, vi que Bankingly acaba de obtener su informe SOC 2 "
+            "Type II con 100% de cumplimiento. Tiene sentido que te las comparta?"
+        )
+    )
+
+    assert result["status"] == "needs_revision"
+    assert "operational company characteristic" in result["agent_note"]
+
+
 def test_tone_checker_passes_specific_spanish_copy() -> None:
     result = tone_checker(
         _state(

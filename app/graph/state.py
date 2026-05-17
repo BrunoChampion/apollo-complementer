@@ -15,6 +15,8 @@ class LeadState(TypedDict):
     draft_signal_claim: NotRequired[str]
     draft_friction_hypothesis: NotRequired[str]
     draft_signal_reason: NotRequired[str]
+    draft_why_now_trigger: NotRequired[str]
+    draft_nyvex_relevance: NotRequired[str]
     email_subject: NotRequired[str]
     email_draft: NotRequired[str]
     previous_draft: NotRequired[str]

@@ -125,6 +125,8 @@ def llm_language_validator_node(llm):
             lead=lead,
             subject=subject,
             body=body,
+            evidence_items=state.get("evidence_items", []),
+            message_angle=state.get("message_angle"),
             max_words=max_words,
         )
         if not review.get("passes"):
@@ -150,6 +152,28 @@ def tone_checker(state: LeadState) -> dict[str, Any]:
             ],
             "agent_note": "Draft needs revision: opener should focus on the company signal.",
         }
+    if _looks_like_trigger_first_opener(text):
+        return {
+            "status": "needs_revision",
+            "quality_issues": state.get("quality_issues", []) + [
+                "opener should use an operational company signal, not a growth trigger"
+            ],
+            "agent_note": (
+                "Draft needs revision: opener should connect to an operational surface "
+                "NYVEX can help explore."
+            ),
+        }
+    if _looks_like_precision_or_milestone_opener(text):
+        return {
+            "status": "needs_revision",
+            "quality_issues": state.get("quality_issues", []) + [
+                "opener should use a stable operational signal, not a precise milestone"
+            ],
+            "agent_note": (
+                "Draft needs revision: opener overstates or over-specifies a milestone; "
+                "use a safer operational company characteristic."
+            ),
+        }
     playbook = state.get("playbook", {})
     message_rules = playbook.get("message_rules", {}) if isinstance(playbook, dict) else {}
     avoid_phrases = list(BASE_AVOID_PHRASES)
@@ -164,6 +188,47 @@ def tone_checker(state: LeadState) -> dict[str, Any]:
             "agent_note": "Draft needs revision: generic outbound tone detected.",
         }
     return {"status": "tone_verified"}
+
+
+def _looks_like_trigger_first_opener(text: str) -> bool:
+    opener = text[:260]
+    if "vi que" not in opener:
+        return False
+    trigger_markers = (
+        "operacion 70",
+        "operación 70",
+        "70 nuevos talentos",
+        "70 new hires",
+        "levantó",
+        "raised",
+        "funding",
+        "ronda",
+        "series ",
+        "contratando",
+        "hiring",
+        "expansion",
+        "expansión",
+    )
+    return any(marker in opener for marker in trigger_markers)
+
+
+def _looks_like_precision_or_milestone_opener(text: str) -> bool:
+    opener = text[:280]
+    if "vi que" not in opener:
+        return False
+    milestone_markers = (
+        "acaba de",
+        "100%",
+        "soc 2",
+        "soc 3",
+        "type ii",
+        "certificacion",
+        "certificación",
+        "informe",
+        "cumplimiento",
+        "compliance report",
+    )
+    return any(marker in opener for marker in milestone_markers)
 
 
 def route_after_guardrail(state: LeadState) -> str:
