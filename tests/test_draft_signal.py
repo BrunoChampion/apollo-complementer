@@ -187,7 +187,7 @@ def test_draft_signal_blocks_careers_as_primary_signal_without_confirmation() ->
     assessment = assess_draft_signal(result)
 
     assert assessment.ready is False
-    assert "Careers" in assessment.reason
+    assert "Careers" in assessment.reason or "operational signal" in assessment.reason
 
 
 def test_draft_signal_prefers_product_surface_over_soc_milestone() -> None:
@@ -300,6 +300,9 @@ def test_draft_signal_accepts_energy_data_operations_signal() -> None:
 
     assert assessment.ready is True
     assert assessment.solution_fit_type == "data_ops_fit"
+    assert assessment.signal_claim
+    assert "renovables" in assessment.signal_claim
+    assert "retail" not in assessment.signal_claim
 
 
 def test_draft_signal_accepts_ai_adoption_company_as_exploratory() -> None:
@@ -329,6 +332,7 @@ def test_draft_signal_accepts_ai_adoption_company_as_exploratory() -> None:
     assert assessment.signal_claim
     assert "Copilot" not in assessment.signal_claim
     assert "n8n" not in assessment.signal_claim
+    assert "retail" not in assessment.signal_claim
 
 
 def test_draft_signal_blocks_simple_chatgpt_style_task() -> None:
@@ -351,4 +355,85 @@ def test_draft_signal_blocks_simple_chatgpt_style_task() -> None:
     assessment = assess_draft_signal(result)
 
     assert assessment.ready is False
-    assert "one-off" in assessment.reason
+    assert "one-off" in assessment.reason or "not draftable" in assessment.reason
+
+
+def test_draft_signal_does_not_contaminate_opener_from_result_context() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-contamination",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Delfos Energy",
+        possible_ai_use_case=(
+            "This stale context mentions inventory, replenishment and retail from "
+            "another company and must not influence the opener."
+        ),
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": (
+                    "Delfos centralizes SCADA and field data for renewable asset "
+                    "operations"
+                ),
+                "source_type": "manual_context",
+                "confidence": 86,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is True
+    assert assessment.signal_claim
+    assert "renovables" in assessment.signal_claim
+    assert "retail" not in assessment.signal_claim
+    assert "inventario" not in assessment.signal_claim
+
+
+def test_draft_signal_selects_cross_border_marketplace_for_nocnoc() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-nocnoc",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="nocnoc",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": (
+                    "nocnoc operates cross-border ecommerce marketplace integrations, "
+                    "logistics, payments and customer service in Latin America"
+                ),
+                "source_type": "manual_context",
+                "confidence": 86,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is True
+    assert assessment.signal_claim
+    assert "marketplace cross-border" in assessment.signal_claim
+    assert "retail" not in assessment.signal_claim
+
+
+def test_draft_signal_blocks_weak_non_specific_signal_by_draftability() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-weak",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Acme",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": "Acme has a B2B platform for customers",
+                "source_type": "website",
+                "confidence": 65,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is False
+    assert "not draftable" in assessment.reason or "operational signal" in assessment.reason

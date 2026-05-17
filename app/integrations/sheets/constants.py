@@ -132,6 +132,8 @@ EMAIL_DRAFTS_HEADERS = [
     "signal_source_quality",
     "system_worthiness",
     "why_not_chatgpt_task",
+    "draftability_score",
+    "outbound_signal_quality",
     "draft_repair_count",
     "draft_repair_reason",
     "gmail_draft_id",

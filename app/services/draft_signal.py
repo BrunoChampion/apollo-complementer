@@ -126,6 +126,20 @@ DECORATIVE_ONLY_KEYWORDS = (
     "website",
 )
 
+DRAFTABILITY_MIN_SCORE = 70
+
+
+@dataclass(frozen=True)
+class SignalCandidate:
+    evidence_index: int
+    evidence_item: EvidenceItem
+    score: int
+    safe_opener: str
+    solution_fit_type: str
+    source_quality: str
+    system_worthiness: str
+    risk_notes: list[str]
+
 
 @dataclass(frozen=True)
 class DraftSignalAssessment:
@@ -142,6 +156,9 @@ class DraftSignalAssessment:
     system_worthiness: str | None = None
     why_not_chatgpt_task: str | None = None
     risk_notes: list[str] | None = None
+    draftability_score: int | None = None
+    outbound_signal_quality: str | None = None
+    signal_candidates: list[dict[str, object]] | None = None
     message_brief: dict[str, object] | None = None
     reason: str = ""
 
@@ -149,8 +166,9 @@ class DraftSignalAssessment:
 def assess_draft_signal(result: EnrichmentResult) -> DraftSignalAssessment:
     """Require a concrete, pain-adjacent signal before allowing outbound copy."""
     evidence_items = result.evidence_items or []
-    selected_pair = _select_signal_evidence_with_index(evidence_items)
-    selected = selected_pair[1] if selected_pair else None
+    candidates = _build_signal_candidates(result, evidence_items)
+    selected_candidate = candidates[0] if candidates else None
+    selected = selected_candidate.evidence_item if selected_candidate else None
     trigger = _select_why_now_trigger(evidence_items, selected)
     if not selected:
         return DraftSignalAssessment(
@@ -162,15 +180,29 @@ def assess_draft_signal(result: EnrichmentResult) -> DraftSignalAssessment:
             ),
         )
 
-    selected_index = selected_pair[0] if selected_pair else 0
-    signal_text = _safe_opener_claim(result, selected)
+    if selected_candidate and selected_candidate.score < DRAFTABILITY_MIN_SCORE:
+        return DraftSignalAssessment(
+            ready=False,
+            signal_candidates=_candidate_summaries(candidates),
+            reason=(
+                "The best outbound signal is not draftable yet. Add stronger, more "
+                "specific evidence tied to an operational surface NYVEX can explore."
+            ),
+        )
+
+    selected_index = selected_candidate.evidence_index if selected_candidate else 0
+    signal_text = selected_candidate.safe_opener if selected_candidate else ""
     if not signal_text:
         return DraftSignalAssessment(
             ready=False,
             reason="The available signal is too vague to use in a first email.",
         )
 
-    source_quality = _source_quality(selected)
+    source_quality = (
+        selected_candidate.source_quality
+        if selected_candidate
+        else _source_quality(selected)
+    )
     careers_without_confirmation = (
         selected.source_type == EvidenceSourceType.CAREERS
         and not _has_confirming_non_careers_evidence(evidence_items, selected)
@@ -185,8 +217,16 @@ def assess_draft_signal(result: EnrichmentResult) -> DraftSignalAssessment:
             ),
         )
 
-    solution_fit_type = _solution_fit_type(result, selected)
-    system_worthiness = _system_worthiness(result, selected, solution_fit_type)
+    solution_fit_type = (
+        selected_candidate.solution_fit_type
+        if selected_candidate
+        else _solution_fit_type(result, selected)
+    )
+    system_worthiness = (
+        selected_candidate.system_worthiness
+        if selected_candidate
+        else _system_worthiness(result, selected, solution_fit_type)
+    )
     if system_worthiness == "low":
         return DraftSignalAssessment(
             ready=False,
@@ -201,13 +241,21 @@ def assess_draft_signal(result: EnrichmentResult) -> DraftSignalAssessment:
     nyvex_relevance = _nyvex_relevance_from_signal(result, selected)
     nyvex_positioning = _nyvex_positioning(result, selected)
     why_not_chatgpt_task = _why_not_chatgpt_task(result, selected, solution_fit_type)
-    risk_notes = _risk_notes(result, selected, source_quality)
+    risk_notes = selected_candidate.risk_notes if selected_candidate else _risk_notes(
+        result,
+        selected,
+        source_quality,
+    )
     message_brief = {
         "selected_signal": signal_text,
         "raw_selected_evidence_claim": selected.claim,
         "supporting_evidence_ids": [evidence_id],
         "source_quality": source_quality,
         "can_use_as_opener": True,
+        "draftability_score": selected_candidate.score if selected_candidate else None,
+        "outbound_signal_quality": _outbound_signal_quality(
+            selected_candidate.score if selected_candidate else 0
+        ),
         "solution_fit_type": solution_fit_type,
         "system_worthiness": system_worthiness,
         "why_not_chatgpt_task": why_not_chatgpt_task,
@@ -238,6 +286,11 @@ def assess_draft_signal(result: EnrichmentResult) -> DraftSignalAssessment:
         system_worthiness=system_worthiness,
         why_not_chatgpt_task=why_not_chatgpt_task,
         risk_notes=risk_notes,
+        draftability_score=selected_candidate.score if selected_candidate else None,
+        outbound_signal_quality=_outbound_signal_quality(
+            selected_candidate.score if selected_candidate else 0
+        ),
+        signal_candidates=_candidate_summaries(candidates),
         message_brief=message_brief,
         reason="Concrete operational signal found for draft.",
     )
@@ -276,7 +329,18 @@ def _select_signal_evidence(evidence_items: list[EvidenceItem]) -> EvidenceItem 
 def _select_signal_evidence_with_index(
     evidence_items: list[EvidenceItem],
 ) -> tuple[int, EvidenceItem] | None:
-    scored: list[tuple[int, int, EvidenceItem]] = []
+    candidates = _build_signal_candidates(None, evidence_items)
+    if not candidates:
+        return None
+    selected = candidates[0]
+    return selected.evidence_index, selected.evidence_item
+
+
+def _build_signal_candidates(
+    result: EnrichmentResult | None,
+    evidence_items: list[EvidenceItem],
+) -> list[SignalCandidate]:
+    candidates: list[SignalCandidate] = []
     for index, item in enumerate(evidence_items):
         text = " ".join(
             part for part in (item.claim, item.quote_or_summary or "") if part
@@ -319,12 +383,32 @@ def _select_signal_evidence_with_index(
         if decorative_hits:
             score -= 10
         score += min(max(item.confidence, 0), 100) // 10
+        safe_opener = _safe_opener_claim(result, item)
+        if not safe_opener:
+            score -= 25
+        if _opener_semantically_conflicts_with_evidence(safe_opener, item):
+            score -= 60
+        solution_fit_type = _solution_fit_type_from_evidence(result, item)
+        system_worthiness = _system_worthiness(result, item, solution_fit_type)
+        if system_worthiness == "low":
+            score -= 50
+        source_quality = _source_quality(item)
+        if source_quality == "low":
+            score -= 15
         if score >= 45:
-            scored.append((score, index, item))
-    if not scored:
-        return None
-    selected = sorted(scored, key=lambda pair: pair[0], reverse=True)[0]
-    return selected[1], selected[2]
+            candidates.append(
+                SignalCandidate(
+                    evidence_index=index,
+                    evidence_item=item,
+                    score=max(0, min(score, 100)),
+                    safe_opener=safe_opener,
+                    solution_fit_type=solution_fit_type,
+                    source_quality=source_quality,
+                    system_worthiness=system_worthiness,
+                    risk_notes=_risk_notes(result, item, source_quality),
+                )
+            )
+    return sorted(candidates, key=lambda candidate: candidate.score, reverse=True)
 
 
 def _select_why_now_trigger(
@@ -425,9 +509,9 @@ def _clean_trigger(claim: str, company_name: str | None) -> str:
     return _sentence_safe_trim(_clean_claim(claim, company_name), 160)
 
 
-def _safe_opener_claim(result: EnrichmentResult, signal: EvidenceItem) -> str:
+def _safe_opener_claim(result: EnrichmentResult | None, signal: EvidenceItem) -> str:
     """Build a conservative Spanish opener claim from one allowed evidence item."""
-    text = _combined_context(result, signal)
+    text = _evidence_context(signal)
 
     if any(marker in text for marker in ("bank", "banco", "cooperativa", "digital banking")):
         if any(marker in text for marker in ("onboarding", "origination", "originacion")):
@@ -441,24 +525,26 @@ def _safe_opener_claim(result: EnrichmentResult, signal: EvidenceItem) -> str:
             "trabaja con IA conversacional para ventas, soporte y operaciones "
             "con clientes"
         )
-    if any(marker in text for marker in ("erp", "pos", "wms", "retail", "replenishment")):
-        return (
-            "conecta datos operativos para apoyar decisiones de inventario, "
-            "abastecimiento y retail"
-        )
     if any(marker in text for marker in ("scada", "field data", "asset performance")):
         return (
             "centraliza datos operativos para priorizar acciones en activos "
             "renovables"
+        )
+    if any(marker in text for marker in ("marketplace", "cross-border", "seller", "ecommerce")):
+        return (
+            "opera flujos de ecommerce y marketplace cross-border en la region"
         )
     if any(marker in text for marker in ("payment", "pagos", "subscription", "suscrip")):
         return (
             "trabaja con pagos, suscripciones e integraciones operativas para "
             "empresas en LATAM"
         )
-    if any(marker in text for marker in ("marketplace", "cross-border", "seller", "ecommerce")):
+    if any(marker in text for marker in ("retail", "replenishment", "wms", "pos")) or (
+        "erp" in text and any(marker in text for marker in ("inventory", "inventario", "retail"))
+    ):
         return (
-            "opera flujos de ecommerce y marketplace cross-border en la region"
+            "conecta datos operativos para apoyar decisiones de inventario, "
+            "abastecimiento y retail"
         )
     if any(
         marker in text
@@ -481,7 +567,10 @@ def _safe_opener_claim(result: EnrichmentResult, signal: EvidenceItem) -> str:
     if any(marker in text for marker in ("implementation", "implementacion", "onboarding")):
         return "tiene procesos de implementacion y onboarding para clientes B2B"
 
-    return _sentence_safe_trim(_clean_claim(signal.claim, result.company_name), 130)
+    return _sentence_safe_trim(
+        _clean_claim(signal.claim, result.company_name if result else None),
+        130,
+    )
 
 
 def _source_quality(item: EvidenceItem) -> str:
@@ -516,11 +605,11 @@ def _has_confirming_non_careers_evidence(
 
 
 def _system_worthiness(
-    result: EnrichmentResult,
+    result: EnrichmentResult | None,
     signal: EvidenceItem,
     solution_fit_type: str,
 ) -> str:
-    text = _combined_context(result, signal)
+    text = _combined_context(result, signal) if result else _evidence_context(signal)
     architecture_markers = (
         "api",
         "crm",
@@ -589,12 +678,12 @@ def _why_not_chatgpt_task(
 
 
 def _risk_notes(
-    result: EnrichmentResult,
+    result: EnrichmentResult | None,
     signal: EvidenceItem,
     source_quality: str,
 ) -> list[str]:
     notes: list[str] = []
-    text = _combined_context(result, signal)
+    text = _combined_context(result, signal) if result else _evidence_context(signal)
     if signal.source_type == EvidenceSourceType.CAREERS:
         notes.append("Careers evidence is timing context only; do not use hiring as opener.")
     if source_quality in {"low", "weak_primary_signal"}:
@@ -628,6 +717,22 @@ def _nyvex_relevance_from_signal(
 
 def _solution_fit_type(result: EnrichmentResult, signal: EvidenceItem) -> str:
     text = _combined_context(result, signal)
+    return _solution_fit_type_from_text(text)
+
+
+def _solution_fit_type_from_evidence(
+    result: EnrichmentResult | None,
+    signal: EvidenceItem,
+) -> str:
+    text = _evidence_context(signal)
+    if result and result.company_summary:
+        summary = result.company_summary.lower()
+        if _is_adjacent_ai_vendor(summary):
+            text = f"{text} {summary}"
+    return _solution_fit_type_from_text(text)
+
+
+def _solution_fit_type_from_text(text: str) -> str:
     if _is_adjacent_ai_vendor(text):
         return "exploratory_custom_solution"
     if any(
@@ -912,8 +1017,10 @@ def _is_adjacent_ai_vendor(text: str) -> bool:
         "already sells ai",
         "conversational ai",
         "ia conversacional",
+        "ai platform",
         "plataforma de ai",
         "plataforma de ia",
+        "platform of ai",
         "sells ai",
         "entrenamiento en ia",
         "vende adopcion de ia",
@@ -932,6 +1039,70 @@ def _combined_context(result: EnrichmentResult, signal: EvidenceItem) -> str:
         " ".join(result.risk_flags or []),
     ]
     return " ".join(part for part in parts if part).lower()
+
+
+def _evidence_context(signal: EvidenceItem) -> str:
+    return " ".join(
+        part for part in (signal.claim, signal.quote_or_summary or "") if part
+    ).lower()
+
+
+def _opener_semantically_conflicts_with_evidence(
+    opener: str,
+    signal: EvidenceItem,
+) -> bool:
+    if not opener:
+        return True
+    evidence = _evidence_context(signal)
+    opener_text = opener.lower()
+    domains = {
+        "retail": ("retail", "inventario", "abastecimiento", "supply chain", "wms", "pos"),
+        "energy": ("scada", "renewable", "renovable", "asset", "field data", "o&m"),
+        "payments": ("payment", "pagos", "subscription", "suscrip", "conciliation"),
+        "banking": ("bank", "banco", "cooperativa", "digital banking"),
+        "marketplace": ("marketplace", "cross-border", "ecommerce", "seller"),
+        "ai_adoption": ("ai adoption", "adopcion de ia", "training", "entrenamiento"),
+    }
+    opener_domains = {
+        name
+        for name, markers in domains.items()
+        if any(marker in opener_text for marker in markers)
+    }
+    evidence_domains = {
+        name for name, markers in domains.items() if any(marker in evidence for marker in markers)
+    }
+    if opener_domains and evidence_domains and opener_domains.isdisjoint(evidence_domains):
+        return True
+    if opener_domains and not evidence_domains:
+        return True
+    return False
+
+
+def _outbound_signal_quality(score: int) -> str:
+    if score >= 85:
+        return "strong"
+    if score >= DRAFTABILITY_MIN_SCORE:
+        return "usable"
+    if score >= 55:
+        return "weak"
+    return "not_draftable"
+
+
+def _candidate_summaries(candidates: list[SignalCandidate]) -> list[dict[str, object]]:
+    return [
+        {
+            "evidence_id": _evidence_id(candidate.evidence_index),
+            "score": candidate.score,
+            "outbound_signal_quality": _outbound_signal_quality(candidate.score),
+            "safe_opener": candidate.safe_opener,
+            "solution_fit_type": candidate.solution_fit_type,
+            "source_quality": candidate.source_quality,
+            "system_worthiness": candidate.system_worthiness,
+            "source_type": candidate.evidence_item.source_type.value,
+            "claim": candidate.evidence_item.claim,
+        }
+        for candidate in candidates[:4]
+    ]
 
 
 def _keyword_hits(text: str, keywords: tuple[str, ...]) -> int:

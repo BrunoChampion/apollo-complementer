@@ -95,6 +95,9 @@ def gate_draft_on_enrichment(state: LeadState) -> dict[str, object]:
         return {
             "status": "needs_manual_research",
             "agent_note": f"Draft blocked: {signal.reason}",
+            "draftability_score": signal.draftability_score,
+            "outbound_signal_quality": signal.outbound_signal_quality,
+            "signal_candidates": signal.signal_candidates or [],
         }
 
     logger.info(
@@ -120,6 +123,9 @@ def gate_draft_on_enrichment(state: LeadState) -> dict[str, object]:
         "draft_system_worthiness": signal.system_worthiness,
         "draft_why_not_chatgpt_task": signal.why_not_chatgpt_task,
         "draft_risk_notes": signal.risk_notes or [],
+        "draftability_score": signal.draftability_score,
+        "outbound_signal_quality": signal.outbound_signal_quality,
+        "signal_candidates": signal.signal_candidates or [],
     }
 
 
@@ -216,6 +222,10 @@ def inject_enrichment_context(state: LeadState) -> dict[str, object]:
             "Why This Is Not A One-Off ChatGPT Task: "
             f"{state.get('draft_why_not_chatgpt_task')}"
         )
+    if state.get("draftability_score") is not None:
+        context_parts.append(f"Draftability Score: {state.get('draftability_score')}")
+    if state.get("outbound_signal_quality"):
+        context_parts.append(f"Outbound Signal Quality: {state.get('outbound_signal_quality')}")
     if state.get("draft_why_now_trigger"):
         context_parts.append(
             "Why Now Trigger (optional context only, not the main opener): "
