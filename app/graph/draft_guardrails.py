@@ -174,6 +174,17 @@ def tone_checker(state: LeadState) -> dict[str, Any]:
                 "use a safer operational company characteristic."
             ),
         }
+    if _looks_like_enumerative_opener(text):
+        return {
+            "status": "needs_revision",
+            "quality_issues": state.get("quality_issues", []) + [
+                "opener should be natural and concise, not a product catalog"
+            ],
+            "agent_note": (
+                "Draft needs revision: opener should group the company signal into one "
+                "clear operational surface instead of listing many capabilities."
+            ),
+        }
     playbook = state.get("playbook", {})
     message_rules = playbook.get("message_rules", {}) if isinstance(playbook, dict) else {}
     avoid_phrases = list(BASE_AVOID_PHRASES)
@@ -229,6 +240,37 @@ def _looks_like_precision_or_milestone_opener(text: str) -> bool:
         "compliance report",
     )
     return any(marker in opener for marker in milestone_markers)
+
+
+def _looks_like_enumerative_opener(text: str) -> bool:
+    opener = _extract_opener_sentence(text)
+    if not opener:
+        return False
+    comma_count = opener.count(",")
+    semicolon_count = opener.count(";")
+    slash_count = opener.count("/")
+    connector_count = len(re.findall(r"\b(y|e|o)\b", opener))
+    catalog_verbs = (
+        "incluye",
+        "ofrece",
+        "combina",
+        "conecta",
+        "gestiona",
+        "integra",
+    )
+    has_catalog_verb = any(verb in opener for verb in catalog_verbs)
+    if comma_count >= 3 or semicolon_count >= 2 or slash_count >= 2:
+        return True
+    if has_catalog_verb and comma_count >= 2 and connector_count >= 2:
+        return True
+    return len(opener.split()) > 32 and comma_count >= 2
+
+
+def _extract_opener_sentence(text: str) -> str:
+    match = re.search(r"\bvi que\b(.{0,360}?)(?:\.|\n\n|\r\n\r\n)", text, flags=re.DOTALL)
+    if not match:
+        return ""
+    return match.group(0).strip()
 
 
 def route_after_guardrail(state: LeadState) -> str:

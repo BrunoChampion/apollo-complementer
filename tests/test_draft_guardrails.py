@@ -100,6 +100,31 @@ def test_tone_checker_rejects_precise_milestone_opener() -> None:
     assert "operational company characteristic" in result["agent_note"]
 
 
+def test_tone_checker_rejects_enumerative_product_catalog_opener() -> None:
+    result = tone_checker(
+        _state(
+            "Hola Sebastian, vi que Bankingly incluye canales digitales bancarios, "
+            "alta digital, originacion de prestamos, chatbots/agentes de IA, billetera, "
+            "pagos, monitoreo de fraude y transferencias. Tiene sentido que te las comparta?"
+        )
+    )
+
+    assert result["status"] == "needs_revision"
+    assert "listing many capabilities" in result["agent_note"]
+
+
+def test_tone_checker_passes_concise_operational_surface_opener() -> None:
+    result = tone_checker(
+        _state(
+            "Hola Sebastian, vi que Bankingly trabaja con bancos y cooperativas en "
+            "canales digitales, onboarding y productos de IA. "
+            "Tiene sentido que te las comparta?"
+        )
+    )
+
+    assert result["status"] == "tone_verified"
+
+
 def test_tone_checker_passes_specific_spanish_copy() -> None:
     result = tone_checker(
         _state(
