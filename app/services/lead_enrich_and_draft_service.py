@@ -439,17 +439,6 @@ class LeadEnrichAndDraftService:
                 result.get("agent_note"),
             )
             return False
-        if result.get("status") not in {"drafted", "revised"}:
-            logger.info(
-                "draft.email_drafts.skip_not_ready "
-                "run_id=%s lead_id=%s status=%s agent_note=%s",
-                run_id,
-                lead.lead_id,
-                result.get("status"),
-                result.get("agent_note"),
-            )
-            return False
-
         enrichment_result = _parse_enrichment_result(result.get("enrichment_result"))
         self.sheet_client.append_row(
             tab_name=EMAIL_DRAFTS_TAB,
