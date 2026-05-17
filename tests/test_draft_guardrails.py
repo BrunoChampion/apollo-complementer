@@ -63,6 +63,18 @@ def test_tone_checker_detects_generic() -> None:
     assert "generic outbound tone" in result["agent_note"]
 
 
+def test_tone_checker_rejects_role_first_opener() -> None:
+    result = tone_checker(
+        _state(
+            "Hola Sebastian, vi que en tu rol de COO lideras Delivery y Support. "
+            "Tiene sentido que te las comparta brevemente?"
+        )
+    )
+
+    assert result["status"] == "needs_revision"
+    assert "company signal" in result["agent_note"]
+
+
 def test_tone_checker_passes_specific_spanish_copy() -> None:
     result = tone_checker(
         _state(

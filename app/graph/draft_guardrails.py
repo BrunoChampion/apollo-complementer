@@ -142,6 +142,14 @@ def llm_language_validator_node(llm):
 
 def tone_checker(state: LeadState) -> dict[str, Any]:
     text = _draft_text(state).lower()
+    if "vi que en tu rol" in text or "vi que como coo" in text:
+        return {
+            "status": "needs_revision",
+            "quality_issues": state.get("quality_issues", []) + [
+                "opener should be company-first, not role-first"
+            ],
+            "agent_note": "Draft needs revision: opener should focus on the company signal.",
+        }
     playbook = state.get("playbook", {})
     message_rules = playbook.get("message_rules", {}) if isinstance(playbook, dict) else {}
     avoid_phrases = list(BASE_AVOID_PHRASES)
