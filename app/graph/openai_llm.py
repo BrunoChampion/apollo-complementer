@@ -61,12 +61,14 @@ class OpenAIDraftLLM:
         why_now_trigger: str | None,
         solution_fit_type: str | None,
         nyvex_positioning: str | None,
+        message_brief: dict[str, object] | None,
         max_words: int,
     ) -> tuple[str, str]:
         payload = {
             "lead": lead.model_dump(mode="json"),
             "message_angle": message_angle,
             "evidence_items": evidence_items,
+            "message_brief": message_brief or {},
             "selected_operational_signal": selected_signal,
             "nyvex_relevance": nyvex_relevance,
             "why_now_trigger": why_now_trigger,
@@ -79,6 +81,12 @@ class OpenAIDraftLLM:
                 "Write a cold outbound email draft for NYVEX. Return JSON with keys "
                 "`subject` and `body`. The body must be in Spanish, concise, specific, "
                 "low hype, and must not claim facts not present in the input. "
+                "Treat `message_brief` as the drafting contract. The opener must use "
+                "`message_brief.selected_signal` as the concrete company fact. Do not "
+                "turn that signal into a broader, prettier, or more abstract claim. "
+                "Use only the evidence IDs listed in `message_brief.supporting_evidence_ids` "
+                "for the first sentence. Other evidence can only help you avoid mistakes; "
+                "it is not permission to add extra claims. "
                 "Use Spanish by default. A small amount of natural LATAM corporate "
                 "English is acceptable when it is the normal business term, but prefer "
                 "clear Spanish when it sounds equally natural, e.g. 'software de RRHH' "
@@ -189,6 +197,7 @@ class OpenAIDraftLLM:
         message_angle: str | None,
         solution_fit_type: str | None,
         nyvex_positioning: str | None,
+        message_brief: dict[str, object] | None,
         max_words: int,
     ) -> tuple[str, str]:
         result = self._json_response(
@@ -197,6 +206,10 @@ class OpenAIDraftLLM:
                 "`subject` and `body`. Fix only the listed issues. Do not add new "
                 "claims, numbers, recency, customers, funding, certifications, or "
                 "personal facts. Keep the email in natural professional Spanish. "
+                "Treat `message_brief` as the repair contract. Keep the same "
+                "`message_brief.selected_signal`; do not replace it with a broader "
+                "or more abstract claim. If the opener is the issue, rewrite it as "
+                "'Vi que [Empresa] [selected_signal].' with light grammatical cleanup. "
                 "Preserve the soft CTA. The opener must be one company-first sentence "
                 "using `selected_operational_signal`, grouped into one clear durable "
                 "operational surface rather than a product catalog. Avoid role-first "
@@ -222,6 +235,7 @@ class OpenAIDraftLLM:
                 "message_angle": message_angle,
                 "solution_fit_type": solution_fit_type,
                 "nyvex_positioning": nyvex_positioning,
+                "message_brief": message_brief or {},
                 "max_words": max_words,
             },
         )

@@ -137,13 +137,20 @@ class DraftSignalAssessment:
     nyvex_relevance: str | None = None
     solution_fit_type: str | None = None
     nyvex_positioning: str | None = None
+    supporting_evidence_ids: list[str] | None = None
+    signal_source_quality: str | None = None
+    system_worthiness: str | None = None
+    why_not_chatgpt_task: str | None = None
+    risk_notes: list[str] | None = None
+    message_brief: dict[str, object] | None = None
     reason: str = ""
 
 
 def assess_draft_signal(result: EnrichmentResult) -> DraftSignalAssessment:
     """Require a concrete, pain-adjacent signal before allowing outbound copy."""
     evidence_items = result.evidence_items or []
-    selected = _select_signal_evidence(evidence_items)
+    selected_pair = _select_signal_evidence_with_index(evidence_items)
+    selected = selected_pair[1] if selected_pair else None
     trigger = _select_why_now_trigger(evidence_items, selected)
     if not selected:
         return DraftSignalAssessment(
@@ -155,24 +162,83 @@ def assess_draft_signal(result: EnrichmentResult) -> DraftSignalAssessment:
             ),
         )
 
-    signal_text = _clean_claim(selected.claim, result.company_name)
+    selected_index = selected_pair[0] if selected_pair else 0
+    signal_text = _safe_opener_claim(result, selected)
     if not signal_text:
         return DraftSignalAssessment(
             ready=False,
             reason="The available signal is too vague to use in a first email.",
         )
 
+    source_quality = _source_quality(selected)
+    careers_without_confirmation = (
+        selected.source_type == EvidenceSourceType.CAREERS
+        and not _has_confirming_non_careers_evidence(evidence_items, selected)
+    )
+    if careers_without_confirmation:
+        return DraftSignalAssessment(
+            ready=False,
+            reason=(
+                "Careers or hiring evidence can support timing, but it is too weak "
+                "as the main opener without separate product, operations, support, "
+                "implementation, data, or customer-process evidence."
+            ),
+        )
+
+    solution_fit_type = _solution_fit_type(result, selected)
+    system_worthiness = _system_worthiness(result, selected, solution_fit_type)
+    if system_worthiness == "low":
+        return DraftSignalAssessment(
+            ready=False,
+            reason=(
+                "The signal points to a one-off AI prompt or simple manual task, "
+                "not a system-level NYVEX opportunity."
+            ),
+        )
+
+    evidence_id = _evidence_id(selected_index)
+    friction = _friction_from_result(result, selected)
+    nyvex_relevance = _nyvex_relevance_from_signal(result, selected)
+    nyvex_positioning = _nyvex_positioning(result, selected)
+    why_not_chatgpt_task = _why_not_chatgpt_task(result, selected, solution_fit_type)
+    risk_notes = _risk_notes(result, selected, source_quality)
+    message_brief = {
+        "selected_signal": signal_text,
+        "raw_selected_evidence_claim": selected.claim,
+        "supporting_evidence_ids": [evidence_id],
+        "source_quality": source_quality,
+        "can_use_as_opener": True,
+        "solution_fit_type": solution_fit_type,
+        "system_worthiness": system_worthiness,
+        "why_not_chatgpt_task": why_not_chatgpt_task,
+        "nyvex_angle": nyvex_relevance,
+        "friction_hypothesis": friction,
+        "nyvex_positioning": nyvex_positioning,
+        "risk_notes": risk_notes,
+        "drafting_policy": (
+            "Use selected_signal as the opener fact. Do not upgrade it into broader "
+            "claims, do not use hiring/funding as the opener, and do not propose "
+            "one-off ChatGPT-style tasks."
+        ),
+    }
+
     return DraftSignalAssessment(
         ready=True,
         signal_claim=signal_text,
         signal_type=_signal_type(selected),
-        friction_hypothesis=_friction_from_result(result, selected),
+        friction_hypothesis=friction,
         why_now_trigger=_clean_trigger(trigger.claim, result.company_name)
         if trigger
         else None,
-        nyvex_relevance=_nyvex_relevance_from_signal(result, selected),
-        solution_fit_type=_solution_fit_type(result, selected),
-        nyvex_positioning=_nyvex_positioning(result, selected),
+        nyvex_relevance=nyvex_relevance,
+        solution_fit_type=solution_fit_type,
+        nyvex_positioning=nyvex_positioning,
+        supporting_evidence_ids=[evidence_id],
+        signal_source_quality=source_quality,
+        system_worthiness=system_worthiness,
+        why_not_chatgpt_task=why_not_chatgpt_task,
+        risk_notes=risk_notes,
+        message_brief=message_brief,
         reason="Concrete operational signal found for draft.",
     )
 
@@ -203,8 +269,15 @@ def select_signal_claim(
 
 
 def _select_signal_evidence(evidence_items: list[EvidenceItem]) -> EvidenceItem | None:
-    scored: list[tuple[int, EvidenceItem]] = []
-    for item in evidence_items:
+    selected = _select_signal_evidence_with_index(evidence_items)
+    return selected[1] if selected else None
+
+
+def _select_signal_evidence_with_index(
+    evidence_items: list[EvidenceItem],
+) -> tuple[int, EvidenceItem] | None:
+    scored: list[tuple[int, int, EvidenceItem]] = []
+    for index, item in enumerate(evidence_items):
         text = " ".join(
             part for part in (item.claim, item.quote_or_summary or "") if part
         ).lower()
@@ -247,10 +320,11 @@ def _select_signal_evidence(evidence_items: list[EvidenceItem]) -> EvidenceItem 
             score -= 10
         score += min(max(item.confidence, 0), 100) // 10
         if score >= 45:
-            scored.append((score, item))
+            scored.append((score, index, item))
     if not scored:
         return None
-    return sorted(scored, key=lambda pair: pair[0], reverse=True)[0][1]
+    selected = sorted(scored, key=lambda pair: pair[0], reverse=True)[0]
+    return selected[1], selected[2]
 
 
 def _select_why_now_trigger(
@@ -349,6 +423,191 @@ def _clean_claim(claim: str, company_name: str | None) -> str:
 
 def _clean_trigger(claim: str, company_name: str | None) -> str:
     return _sentence_safe_trim(_clean_claim(claim, company_name), 160)
+
+
+def _safe_opener_claim(result: EnrichmentResult, signal: EvidenceItem) -> str:
+    """Build a conservative Spanish opener claim from one allowed evidence item."""
+    text = _combined_context(result, signal)
+
+    if any(marker in text for marker in ("bank", "banco", "cooperativa", "digital banking")):
+        if any(marker in text for marker in ("onboarding", "origination", "originacion")):
+            return (
+                "trabaja con instituciones financieras en canales digitales, "
+                "onboarding y atencion a clientes"
+            )
+        return "trabaja con instituciones financieras en operaciones digitales"
+    if any(marker in text for marker in ("conversational ai", "ia conversacional", "whatsapp")):
+        return (
+            "trabaja con IA conversacional para ventas, soporte y operaciones "
+            "con clientes"
+        )
+    if any(marker in text for marker in ("erp", "pos", "wms", "retail", "replenishment")):
+        return (
+            "conecta datos operativos para apoyar decisiones de inventario, "
+            "abastecimiento y retail"
+        )
+    if any(marker in text for marker in ("scada", "field data", "asset performance")):
+        return (
+            "centraliza datos operativos para priorizar acciones en activos "
+            "renovables"
+        )
+    if any(marker in text for marker in ("payment", "pagos", "subscription", "suscrip")):
+        return (
+            "trabaja con pagos, suscripciones e integraciones operativas para "
+            "empresas en LATAM"
+        )
+    if any(marker in text for marker in ("marketplace", "cross-border", "seller", "ecommerce")):
+        return (
+            "opera flujos de ecommerce y marketplace cross-border en la region"
+        )
+    if any(
+        marker in text
+        for marker in (
+            "ai adoption",
+            "adopcion de ia",
+            "adopciÃƒÂ³n de ia",
+            "process automation",
+            "training",
+            "entrenamiento",
+        )
+    ):
+        return (
+            "trabaja en adopcion de IA y automatizacion de procesos para equipos B2B"
+        )
+    if any(marker in text for marker in ("help center", "knowledge base", "documentation")):
+        return "tiene documentacion y conocimiento operativo de cara a clientes"
+    if any(marker in text for marker in ("support", "soporte", "ticket")):
+        return "tiene una operacion de soporte donde el conocimiento pesa mucho"
+    if any(marker in text for marker in ("implementation", "implementacion", "onboarding")):
+        return "tiene procesos de implementacion y onboarding para clientes B2B"
+
+    return _sentence_safe_trim(_clean_claim(signal.claim, result.company_name), 130)
+
+
+def _source_quality(item: EvidenceItem) -> str:
+    if item.source_type in {
+        EvidenceSourceType.HELP_CENTER,
+        EvidenceSourceType.MANUAL_CONTEXT,
+        EvidenceSourceType.WEBSITE,
+    }:
+        return "high" if item.confidence >= 75 else "medium"
+    if item.source_type in {EvidenceSourceType.BLOG, EvidenceSourceType.SEARCH_RESULT}:
+        return "medium" if item.confidence >= 70 else "low"
+    if item.source_type == EvidenceSourceType.CAREERS:
+        return "weak_primary_signal"
+    return "low"
+
+
+def _has_confirming_non_careers_evidence(
+    evidence_items: list[EvidenceItem],
+    selected: EvidenceItem,
+) -> bool:
+    selected_text = f"{selected.claim} {selected.quote_or_summary or ''}".lower()
+    for item in evidence_items:
+        if item == selected or item.source_type == EvidenceSourceType.CAREERS:
+            continue
+        text = f"{item.claim} {item.quote_or_summary or ''}".lower()
+        if _has_solution_adjacent_signal(text) and (
+            _token_overlap_text(selected_text, text) >= 0.20
+            or _keyword_hits(text, OPERATIONAL_SIGNAL_KEYWORDS) >= 2
+        ):
+            return True
+    return False
+
+
+def _system_worthiness(
+    result: EnrichmentResult,
+    signal: EvidenceItem,
+    solution_fit_type: str,
+) -> str:
+    text = _combined_context(result, signal)
+    architecture_markers = (
+        "api",
+        "crm",
+        "data",
+        "datos",
+        "erp",
+        "field data",
+        "help center",
+        "integration",
+        "integracion",
+        "knowledge base",
+        "permissions",
+        "permisos",
+        "reglas",
+        "rules",
+        "scada",
+        "tickets",
+        "traceability",
+        "trazabilidad",
+        "webhook",
+        "workflow",
+    )
+    trivial_markers = (
+        "checklist",
+        "notas",
+        "one-off",
+        "resumir",
+        "summarize",
+        "tomar notas",
+    )
+    if any(marker in text for marker in trivial_markers) and not any(
+        marker in text for marker in architecture_markers
+    ):
+        return "low"
+    if solution_fit_type in {"data_ops_fit", "agentic_workflow_fit", "direct_rag_fit"}:
+        return "high"
+    if any(marker in text for marker in architecture_markers):
+        return "medium"
+    return "medium"
+
+
+def _why_not_chatgpt_task(
+    result: EnrichmentResult,
+    signal: EvidenceItem,
+    solution_fit_type: str,
+) -> str:
+    if solution_fit_type == "direct_rag_fit":
+        return (
+            "The angle requires retrieval over company knowledge, permissions, "
+            "repeatable answers and operational handoff, not a one-off summary."
+        )
+    if solution_fit_type == "data_ops_fit":
+        return (
+            "The angle involves live data, business rules, exceptions and repeatable "
+            "decisions across systems."
+        )
+    if solution_fit_type == "agentic_workflow_fit":
+        return (
+            "The angle involves routing, actions, tool use, human review and "
+            "traceable workflow execution."
+        )
+    return (
+        "The email should explore a tailored system opportunity; avoid pitching "
+        "manual prompting, generic chatbots or one-off content generation."
+    )
+
+
+def _risk_notes(
+    result: EnrichmentResult,
+    signal: EvidenceItem,
+    source_quality: str,
+) -> list[str]:
+    notes: list[str] = []
+    text = _combined_context(result, signal)
+    if signal.source_type == EvidenceSourceType.CAREERS:
+        notes.append("Careers evidence is timing context only; do not use hiring as opener.")
+    if source_quality in {"low", "weak_primary_signal"}:
+        notes.append("Use a cautious opener because the selected source is not strong.")
+    if _is_time_sensitive_primary_signal(text):
+        notes.append("Avoid exact recency unless the date is explicit and still relevant.")
+    if _is_adjacent_ai_vendor(text):
+        notes.append("Prospect may already sell AI; position NYVEX as exploratory/custom.")
+    return notes
+
+
+def _evidence_id(index: int) -> str:
+    return f"ev_{index + 1}"
 
 
 def _nyvex_relevance_from_signal(
@@ -677,6 +936,22 @@ def _combined_context(result: EnrichmentResult, signal: EvidenceItem) -> str:
 
 def _keyword_hits(text: str, keywords: tuple[str, ...]) -> int:
     return sum(1 for keyword in keywords if keyword in text)
+
+
+def _token_overlap_text(left: str, right: str) -> float:
+    left_tokens = {
+        token
+        for token in left.replace("/", " ").replace("-", " ").split()
+        if len(token) > 3
+    }
+    right_tokens = {
+        token
+        for token in right.replace("/", " ").replace("-", " ").split()
+        if len(token) > 3
+    }
+    if not left_tokens or not right_tokens:
+        return 0.0
+    return len(left_tokens & right_tokens) / min(len(left_tokens), len(right_tokens))
 
 
 def _looks_like_direct_person_diagnosis(text: str) -> bool:

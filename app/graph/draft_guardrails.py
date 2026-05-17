@@ -63,6 +63,7 @@ BASE_AVOID_PHRASES = (
 def verify_claims_against_evidence(state: LeadState) -> dict[str, Any]:
     draft = _draft_text(state)
     evidence_texts = _evidence_texts(state.get("evidence_items", []))
+    evidence_texts.extend(_brief_evidence_texts(state.get("draft_message_brief")))
     unsupported = []
 
     for sentence in _sentences(draft):
@@ -389,6 +390,24 @@ def _evidence_texts(evidence_items: list[dict[str, Any]]) -> list[str]:
         texts.append(str(item.get("claim") or "").lower())
         texts.append(str(item.get("quote_or_summary") or "").lower())
     return [text for text in texts if text]
+
+
+def _brief_evidence_texts(message_brief: Any) -> list[str]:
+    if not isinstance(message_brief, dict):
+        return []
+    texts = []
+    for key in (
+        "selected_signal",
+        "raw_selected_evidence_claim",
+        "friction_hypothesis",
+        "nyvex_angle",
+        "nyvex_positioning",
+        "why_not_chatgpt_task",
+    ):
+        value = message_brief.get(key)
+        if value:
+            texts.append(str(value).lower())
+    return texts
 
 
 def _supported_by_evidence(sentence: str, evidence_texts: list[str]) -> bool:

@@ -24,6 +24,7 @@ class DraftLLM(Protocol):
         why_now_trigger: str | None,
         solution_fit_type: str | None,
         nyvex_positioning: str | None,
+        message_brief: dict[str, object] | None,
         max_words: int,
     ) -> tuple[str, str]: ...
 
@@ -47,6 +48,7 @@ class DraftLLM(Protocol):
         message_angle: str | None,
         solution_fit_type: str | None,
         nyvex_positioning: str | None,
+        message_brief: dict[str, object] | None,
         max_words: int,
     ) -> tuple[str, str]: ...
 
@@ -86,10 +88,11 @@ class DeterministicDraftLLM:
         why_now_trigger: str | None,
         solution_fit_type: str | None,
         nyvex_positioning: str | None,
+        message_brief: dict[str, object] | None,
         max_words: int,
     ) -> tuple[str, str]:
         first_name = (lead.prospect_name or "hola").split()[0]
-        signal = selected_signal or select_signal_claim(
+        signal = _brief_selected_signal(message_brief) or selected_signal or select_signal_claim(
             evidence_items,
             company_name=lead.company_name,
         )
@@ -140,6 +143,7 @@ class DeterministicDraftLLM:
         message_angle: str | None,
         solution_fit_type: str | None,
         nyvex_positioning: str | None,
+        message_brief: dict[str, object] | None,
         max_words: int,
     ) -> tuple[str, str]:
         fixed_body = body.replace("Operations Engineering", "operaciones")
@@ -258,6 +262,7 @@ def draft_message_node(llm: DraftLLM) -> callable:
             why_now_trigger=state.get("draft_why_now_trigger"),
             solution_fit_type=state.get("draft_solution_fit_type"),
             nyvex_positioning=state.get("draft_nyvex_positioning"),
+            message_brief=state.get("draft_message_brief"),
             max_words=max_words,
         )
         return {
@@ -286,6 +291,7 @@ def repair_draft_node(llm: DraftLLM) -> callable:
             message_angle=state.get("message_angle"),
             solution_fit_type=state.get("draft_solution_fit_type"),
             nyvex_positioning=state.get("draft_nyvex_positioning"),
+            message_brief=state.get("draft_message_brief"),
             max_words=max_words,
         )
         repair_count = int(state.get("draft_repair_count") or 0) + 1
@@ -398,6 +404,13 @@ def _default_nyvex_positioning(solution_fit_type: str | None) -> str:
         "Desde NYVEX vengo trabajando en sistemas de IA aplicados a procesos reales, "
         "incluyendo RAG y agentes cuando ayudan a ordenar flujos operativos."
     )
+
+
+def _brief_selected_signal(message_brief: dict[str, object] | None) -> str | None:
+    if not isinstance(message_brief, dict):
+        return None
+    value = message_brief.get("selected_signal")
+    return str(value).strip() if value else None
 
 
 def _repair_reason(state: LeadState) -> str:

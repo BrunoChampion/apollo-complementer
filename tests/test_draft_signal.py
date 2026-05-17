@@ -8,7 +8,7 @@ def test_draft_signal_accepts_operational_evidence() -> None:
         enrichment_status=EnrichmentStatus.ENRICHED,
         company_name="Acme",
         operational_pain_hypothesis=(
-            "el conocimiento queda repartido entre documentación, soporte y onboarding"
+            "el conocimiento queda repartido entre documentacion, soporte y onboarding"
         ),
         recommended_action=RecommendedAction.DRAFT,
         confidence_score=90,
@@ -25,9 +25,11 @@ def test_draft_signal_accepts_operational_evidence() -> None:
 
     assert assessment.ready is True
     assert assessment.signal_claim == (
-        "tiene un help center and onboarding documentation for B2B clients"
+        "tiene documentacion y conocimiento operativo de cara a clientes"
     )
-    assert "documentación" in (assessment.friction_hypothesis or "")
+    assert "documentacion" in (assessment.friction_hypothesis or "")
+    assert assessment.message_brief
+    assert assessment.message_brief["supporting_evidence_ids"] == ["ev_1"]
 
 
 def test_draft_signal_blocks_decorative_evidence() -> None:
@@ -108,7 +110,7 @@ def test_draft_signal_prefers_operational_surface_over_hiring_trigger() -> None:
 
     assert assessment.ready is True
     assert assessment.signal_claim
-    assert "conversational AI workflows" in assessment.signal_claim
+    assert "IA conversacional" in assessment.signal_claim
     assert assessment.why_now_trigger
     assert "Operation 70" in assessment.why_now_trigger
 
@@ -163,6 +165,31 @@ def test_draft_signal_blocks_careers_signal_even_when_platform_is_mentioned() ->
     assert "operational signal" in assessment.reason
 
 
+def test_draft_signal_blocks_careers_as_primary_signal_without_confirmation() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-careers-only",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Vambe",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": (
+                    "Vambe careers mention onboarding and customer success operations "
+                    "for a conversational AI platform"
+                ),
+                "source_type": "careers",
+                "confidence": 90,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is False
+    assert "Careers" in assessment.reason
+
+
 def test_draft_signal_prefers_product_surface_over_soc_milestone() -> None:
     result = EnrichmentResult(
         enrichment_id="enr-5",
@@ -191,7 +218,7 @@ def test_draft_signal_prefers_product_surface_over_soc_milestone() -> None:
 
     assert assessment.ready is True
     assert assessment.signal_claim
-    assert "digital banking channels" in assessment.signal_claim
+    assert "instituciones financieras" in assessment.signal_claim
     assert "SOC 2" not in assessment.signal_claim
 
 
@@ -220,8 +247,10 @@ def test_draft_signal_sets_exploratory_fit_for_ai_vendor() -> None:
 
     assert assessment.ready is True
     assert assessment.solution_fit_type == "exploratory_custom_solution"
+    assert assessment.signal_claim
+    assert "ERP" not in assessment.signal_claim
     assert assessment.nyvex_positioning
-    assert "explorar hipótesis concretas" in assessment.nyvex_positioning
+    assert "explorar" in assessment.nyvex_positioning
 
 
 def test_draft_signal_sets_data_ops_fit_for_non_ai_data_workflow() -> None:
@@ -297,3 +326,29 @@ def test_draft_signal_accepts_ai_adoption_company_as_exploratory() -> None:
 
     assert assessment.ready is True
     assert assessment.solution_fit_type == "exploratory_custom_solution"
+    assert assessment.signal_claim
+    assert "Copilot" not in assessment.signal_claim
+    assert "n8n" not in assessment.signal_claim
+
+
+def test_draft_signal_blocks_simple_chatgpt_style_task() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-trivial",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Acme",
+        possible_ai_use_case="resumir notas y generar checklist para cada llamada",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": "Acme has onboarding documentation for B2B clients",
+                "source_type": "manual_context",
+                "confidence": 85,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is False
+    assert "one-off" in assessment.reason

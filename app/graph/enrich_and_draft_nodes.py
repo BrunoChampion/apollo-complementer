@@ -114,6 +114,12 @@ def gate_draft_on_enrichment(state: LeadState) -> dict[str, object]:
         "draft_nyvex_relevance": signal.nyvex_relevance,
         "draft_solution_fit_type": signal.solution_fit_type,
         "draft_nyvex_positioning": signal.nyvex_positioning,
+        "draft_message_brief": signal.message_brief,
+        "draft_supporting_evidence_ids": signal.supporting_evidence_ids or [],
+        "draft_signal_source_quality": signal.signal_source_quality,
+        "draft_system_worthiness": signal.system_worthiness,
+        "draft_why_not_chatgpt_task": signal.why_not_chatgpt_task,
+        "draft_risk_notes": signal.risk_notes or [],
     }
 
 
@@ -201,6 +207,15 @@ def inject_enrichment_context(state: LeadState) -> dict[str, object]:
         context_parts.append(f"Solution Fit Type: {state.get('draft_solution_fit_type')}")
     if state.get("draft_nyvex_positioning"):
         context_parts.append(f"NYVEX Positioning Line: {state.get('draft_nyvex_positioning')}")
+    if state.get("draft_message_brief"):
+        context_parts.append(f"Message Brief: {state.get('draft_message_brief')}")
+    if state.get("draft_system_worthiness"):
+        context_parts.append(f"System Worthiness: {state.get('draft_system_worthiness')}")
+    if state.get("draft_why_not_chatgpt_task"):
+        context_parts.append(
+            "Why This Is Not A One-Off ChatGPT Task: "
+            f"{state.get('draft_why_not_chatgpt_task')}"
+        )
     if state.get("draft_why_now_trigger"):
         context_parts.append(
             "Why Now Trigger (optional context only, not the main opener): "
@@ -218,14 +233,17 @@ def inject_enrichment_context(state: LeadState) -> dict[str, object]:
     summary = "\n".join(context_parts) or "No enrichment context available."
 
     evidence_json = []
-    for item in result.evidence_items or []:
+    supporting_ids = set(state.get("draft_supporting_evidence_ids") or [])
+    for index, item in enumerate(result.evidence_items or []):
+        evidence_id = f"ev_{index + 1}"
         evidence_json.append({
+            "evidence_id": evidence_id,
             "claim": item.claim,
             "source_type": item.source_type.value,
             "source_url": item.source_url,
             "quote_or_summary": item.quote_or_summary,
             "confidence": item.confidence,
-            "used_in_message": item.used_in_message,
+            "used_in_message": item.used_in_message or evidence_id in supporting_ids,
         })
 
     logger.info(
