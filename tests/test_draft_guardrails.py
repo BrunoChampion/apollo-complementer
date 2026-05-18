@@ -153,6 +153,21 @@ def test_tone_checker_rejects_trivial_ai_pitch() -> None:
     assert "real architecture" in result["quality_issues"][0]
 
 
+def test_tone_checker_rejects_overpacked_system_pitch() -> None:
+    result = tone_checker(
+        _state(
+            "Hola Ana, vi que Acme usa HubSpot. "
+            "En empresas B2B con ese tipo de operacion suele aparecer una friccion: "
+            "datos, reglas, permisos, excepciones, trazabilidad, revision humana, "
+            "integraciones y soporte quedan mezclados. "
+            "Tiene sentido que te comparta 2-3 hipotesis concretas?"
+        )
+    )
+
+    assert result["status"] == "needs_revision"
+    assert "one clear system hypothesis" in result["quality_issues"][0]
+
+
 def test_tone_checker_passes_concise_operational_surface_opener() -> None:
     result = tone_checker(
         _state(

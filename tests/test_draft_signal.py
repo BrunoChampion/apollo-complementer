@@ -165,6 +165,32 @@ def test_draft_signal_blocks_careers_signal_even_when_platform_is_mentioned() ->
     assert "operational signal" in assessment.reason
 
 
+def test_draft_signal_blocks_manual_role_list_as_primary_signal() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-manual-roles-platform",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Vambe",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": (
+                    "Vambe mentions Operations Engineer, Engagement Manager, "
+                    "Onboarding and Customer Success roles for its conversational "
+                    "AI platform"
+                ),
+                "source_type": "manual_context",
+                "confidence": 90,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is False
+    assert "operational signal" in assessment.reason
+
+
 def test_draft_signal_blocks_careers_as_primary_signal_without_confirmation() -> None:
     result = EnrichmentResult(
         enrichment_id="enr-careers-only",
@@ -328,7 +354,7 @@ def test_draft_signal_accepts_ai_adoption_company_as_exploratory() -> None:
     assessment = assess_draft_signal(result)
 
     assert assessment.ready is True
-    assert assessment.solution_fit_type == "exploratory_custom_solution"
+    assert assessment.solution_fit_type == "partner_or_adjacent_vendor"
     assert assessment.signal_claim
     assert "Copilot" not in assessment.signal_claim
     assert "n8n" not in assessment.signal_claim

@@ -104,6 +104,23 @@ HIRING_PRIMARY_KEYWORDS = (
     "vacantes",
 )
 
+ROLE_LIST_KEYWORDS = (
+    "customer success role",
+    "customer success roles",
+    "engagement manager",
+    "implementation manager",
+    "onboarding role",
+    "onboarding roles",
+    "operations engineer",
+    "open role",
+    "open roles",
+    "role in ",
+    "roles in ",
+    "roles para",
+    "vacante",
+    "vacantes",
+)
+
 MILESTONE_OR_CREDENTIAL_KEYWORDS = (
     "certification",
     "certificacion",
@@ -356,7 +373,7 @@ def _build_signal_candidates(
             and _keyword_hits(text, HIRING_PRIMARY_KEYWORDS)
         ):
             continue
-        if _is_hiring_or_role_primary_signal(text):
+        if _is_hiring_or_role_primary_signal(text) or _is_role_list_signal(text):
             continue
         if _is_time_sensitive_primary_signal(text) and not _has_stable_operational_surface(text):
             continue
@@ -644,7 +661,12 @@ def _system_worthiness(
         marker in text for marker in architecture_markers
     ):
         return "low"
-    if solution_fit_type in {"data_ops_fit", "agentic_workflow_fit", "direct_rag_fit"}:
+    if solution_fit_type in {
+        "data_ops_fit",
+        "agentic_workflow_fit",
+        "direct_rag_fit",
+        "partner_or_adjacent_vendor",
+    }:
         return "high"
     if any(marker in text for marker in architecture_markers):
         return "medium"
@@ -670,6 +692,12 @@ def _why_not_chatgpt_task(
         return (
             "The angle involves routing, actions, tool use, human review and "
             "traceable workflow execution."
+        )
+    if solution_fit_type == "partner_or_adjacent_vendor":
+        return (
+            "The angle is exploratory and complementary: it should look for "
+            "system-level opportunities around workflows, enablement, client delivery "
+            "or internal operations, not a generic AI feature pitch."
         )
     return (
         "The email should explore a tailored system opportunity; avoid pitching "
@@ -733,6 +761,8 @@ def _solution_fit_type_from_evidence(
 
 
 def _solution_fit_type_from_text(text: str) -> str:
+    if _is_partner_or_adjacent_vendor(text):
+        return "partner_or_adjacent_vendor"
     if _is_adjacent_ai_vendor(text):
         return "exploratory_custom_solution"
     if any(
@@ -814,6 +844,12 @@ def _nyvex_positioning(result: EnrichmentResult, signal: EvidenceItem) -> str:
             "reales, incluyendo agentes y RAG cuando sirven para convertir criterio "
             "operativo en flujos reutilizables."
         )
+    if fit == "partner_or_adjacent_vendor":
+        return (
+            "Desde NYVEX vengo trabajando en sistemas de IA aplicados a procesos "
+            "reales; en casos como este me interesa explorar hipotesis complementarias, "
+            "no vender una implementacion generica."
+        )
     return (
         "Desde NYVEX vengo trabajando en sistemas de IA aplicados a procesos reales; "
         "mi interés sería explorar hipótesis concretas, no vender una solución genérica."
@@ -843,6 +879,11 @@ def _fit_specific_friction(result: EnrichmentResult, signal: EvidenceItem) -> st
         return (
             "los handoffs entre equipos, herramientas y clientes dependen de criterio "
             "manual que deberÃ­a convertirse en acciones repetibles"
+        )
+    if fit == "partner_or_adjacent_vendor":
+        return (
+            "cuando una empresa ya ayuda a otros equipos con IA, el valor suele estar "
+            "en convertir criterios, aprendizajes y workflows en sistemas repetibles"
         )
     return (
         "cuando la empresa ya trabaja con IA o software avanzado, el valor suele estar "
@@ -983,6 +1024,17 @@ def _is_hiring_or_role_primary_signal(text: str) -> bool:
     )
 
 
+def _is_role_list_signal(text: str) -> bool:
+    if any(marker in text for marker in ROLE_LIST_KEYWORDS):
+        return True
+    if _keyword_hits(text, ("role", "roles", "vacante", "vacantes")) and _keyword_hits(
+        text,
+        ("engineer", "manager", "specialist", "customer success", "onboarding"),
+    ):
+        return True
+    return False
+
+
 def _is_time_sensitive_primary_signal(text: str) -> bool:
     primary_markers = (
         "announced",
@@ -1024,6 +1076,21 @@ def _is_adjacent_ai_vendor(text: str) -> bool:
         "sells ai",
         "entrenamiento en ia",
         "vende adopcion de ia",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _is_partner_or_adjacent_vendor(text: str) -> bool:
+    markers = (
+        "adopcion de ia",
+        "adopciÃƒÂ³n de ia",
+        "ai adoption",
+        "ai training",
+        "entrenamiento en ia",
+        "on-the-job training",
+        "process automation",
+        "programas de adopcion",
+        "training and adoption",
     )
     return any(marker in text for marker in markers)
 

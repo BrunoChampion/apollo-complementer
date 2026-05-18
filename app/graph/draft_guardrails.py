@@ -200,6 +200,17 @@ def tone_checker(state: LeadState) -> dict[str, Any]:
                 "integrations, rules, traceability or repeatable workflows."
             ),
         }
+    if _looks_like_overpacked_system_pitch(text):
+        return {
+            "status": "needs_revision",
+            "quality_issues": state.get("quality_issues", []) + [
+                "draft should express one clear system hypothesis, not a stack of concepts"
+            ],
+            "agent_note": (
+                "Draft needs revision: friction/NYVEX angle is overloaded with too many "
+                "system concepts; make it simpler and more natural."
+            ),
+        }
     playbook = state.get("playbook", {})
     message_rules = playbook.get("message_rules", {}) if isinstance(playbook, dict) else {}
     avoid_phrases = list(BASE_AVOID_PHRASES)
@@ -311,6 +322,34 @@ def _looks_like_trivial_ai_pitch(text: str) -> bool:
     return not any(marker in text for marker in system_markers)
 
 
+def _looks_like_overpacked_system_pitch(text: str) -> bool:
+    concept_markers = (
+        "datos",
+        "reglas",
+        "permisos",
+        "excepciones",
+        "trazabilidad",
+        "revision humana",
+        "revisión humana",
+        "integraciones",
+        "soporte",
+        "marketplace",
+        "herramientas",
+    )
+    paragraphs = [
+        paragraph.strip()
+        for paragraph in re.split(r"\n\s*\n", text)
+        if paragraph.strip()
+    ]
+    for paragraph in paragraphs:
+        if "en empresas b2b" not in paragraph and "nyvex" not in paragraph:
+            continue
+        hits = {marker for marker in concept_markers if marker in paragraph}
+        if len(hits) >= 6:
+            return True
+    return False
+
+
 def _extract_opener_sentence(text: str) -> str:
     match = re.search(r"\bvi que\b(.{0,360}?)(?:\.|\n\n|\r\n\r\n)", text, flags=re.DOTALL)
     if not match:
@@ -353,6 +392,7 @@ def _should_auto_repair(state: LeadState) -> bool:
         "generic outbound tone",
         "language should be spanish",
         "listing many capabilities",
+        "overloaded",
         "not a product catalog",
         "operational surface",
         "opener",

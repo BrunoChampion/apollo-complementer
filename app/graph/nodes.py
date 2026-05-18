@@ -1,3 +1,4 @@
+import re
 from typing import Protocol
 
 from app.domain.leads import LeadRow
@@ -8,6 +9,8 @@ from app.services.quality import evaluate_message_quality
 from app.services.revision_hash import hash_revision_instruction
 
 from .state import LeadState
+
+SOFT_CTA = "¿Tiene sentido que te comparta 2-3 hipótesis concretas?"
 
 
 class DraftLLM(Protocol):
@@ -265,6 +268,7 @@ def draft_message_node(llm: DraftLLM) -> callable:
             message_brief=state.get("draft_message_brief"),
             max_words=max_words,
         )
+        body = _apply_draft_contract(body, lead, state, max_words)
         return {
             "email_subject": subject,
             "email_draft": body,
@@ -294,6 +298,7 @@ def repair_draft_node(llm: DraftLLM) -> callable:
             message_brief=state.get("draft_message_brief"),
             max_words=max_words,
         )
+        body = _apply_draft_contract(body, lead, state, max_words)
         repair_count = int(state.get("draft_repair_count") or 0) + 1
         repair_reason = _repair_reason(state)
         return {
@@ -411,6 +416,58 @@ def _brief_selected_signal(message_brief: dict[str, object] | None) -> str | Non
         return None
     value = message_brief.get("selected_signal")
     return str(value).strip() if value else None
+
+
+def _apply_draft_contract(
+    body: str,
+    lead: LeadRow,
+    state: LeadState,
+    max_words: int,
+) -> str:
+    signal = _brief_selected_signal(state.get("draft_message_brief")) or state.get(
+        "draft_signal_claim"
+    )
+    body = _enforce_selected_opener(body, lead, str(signal).strip() if signal else None)
+    body = _enforce_soft_cta(body)
+    return _limit_words(body, max_words)
+
+
+def _enforce_selected_opener(body: str, lead: LeadRow, selected_signal: str | None) -> str:
+    if not selected_signal:
+        return body
+    company = (lead.company_name or "la empresa").strip()
+    signal = " ".join(selected_signal.strip().rstrip(".").split())
+    if not signal:
+        return body
+    if signal.lower().startswith(company.lower()):
+        opener = f"Vi que {signal}."
+    else:
+        opener = f"Vi que {company} {signal}."
+
+    pattern = re.compile(r"\bvi que\b[^\n.?!]*(?:[.?!])", flags=re.IGNORECASE)
+    if pattern.search(body):
+        return pattern.sub(opener, body, count=1)
+
+    parts = re.split(r"(\r?\n\r?\n)", body, maxsplit=1)
+    if len(parts) >= 3:
+        return f"{parts[0]}{parts[1]}{opener}{parts[1]}{parts[2].lstrip()}"
+    return f"{opener}\n\n{body}"
+
+
+def _enforce_soft_cta(body: str) -> str:
+    if SOFT_CTA in body:
+        return body
+    cta_pattern = re.compile(r"¿?Tiene sentido[^?\n]*\?", flags=re.IGNORECASE)
+    if cta_pattern.search(body):
+        return cta_pattern.sub(SOFT_CTA, body, count=1)
+    return f"{body.rstrip()}\n\n{SOFT_CTA}"
+
+
+def _limit_words(text: str, max_words: int) -> str:
+    words = text.split()
+    if len(words) <= max_words:
+        return text
+    return " ".join(words[:max_words])
 
 
 def _repair_reason(state: LeadState) -> str:
