@@ -463,3 +463,28 @@ def test_draft_signal_blocks_weak_non_specific_signal_by_draftability() -> None:
 
     assert assessment.ready is False
     assert "not draftable" in assessment.reason or "operational signal" in assessment.reason
+
+
+def test_draft_signal_does_not_use_raw_english_person_claim_as_opener() -> None:
+    result = EnrichmentResult(
+        enrichment_id="enr-english",
+        enrichment_status=EnrichmentStatus.ENRICHED,
+        company_name="Master Metrics",
+        recommended_action=RecommendedAction.DRAFT,
+        confidence_score=90,
+        evidence_items=[
+            {
+                "claim": (
+                    "Patricio says marketing teams and agencies use AI workflows, "
+                    "HubSpot and sales funnels"
+                ),
+                "source_type": "manual_context",
+                "confidence": 90,
+            }
+        ],
+    )
+
+    assessment = assess_draft_signal(result)
+
+    assert assessment.ready is False
+    assert assessment.signal_claim is None

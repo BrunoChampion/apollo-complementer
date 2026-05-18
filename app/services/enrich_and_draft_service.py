@@ -227,6 +227,13 @@ class EnrichAndDraftService:
             "outbound_signal_quality": draft_output.get("outbound_signal_quality"),
             "draft_repair_count": draft_output.get("draft_repair_count"),
             "draft_repair_reason": draft_output.get("draft_repair_reason"),
+            "message_brief": draft_output.get("draft_message_brief"),
+            "raw_selected_evidence_claim": _raw_selected_evidence_claim(
+                draft_output.get("draft_message_brief")
+            ),
+            "supporting_evidence_ids": draft_output.get("draft_supporting_evidence_ids"),
+            "signal_candidates": draft_output.get("signal_candidates"),
+            "draft_contract_version": draft_output.get("draft_contract_version"),
             "enrichment_result": enrichment_dict,
         }
 
@@ -291,6 +298,13 @@ class EnrichAndDraftService:
             "outbound_signal_quality": output.get("outbound_signal_quality"),
             "draft_repair_count": output.get("draft_repair_count"),
             "draft_repair_reason": output.get("draft_repair_reason"),
+            "message_brief": output.get("draft_message_brief"),
+            "raw_selected_evidence_claim": _raw_selected_evidence_claim(
+                output.get("draft_message_brief")
+            ),
+            "supporting_evidence_ids": output.get("draft_supporting_evidence_ids"),
+            "signal_candidates": output.get("signal_candidates"),
+            "draft_contract_version": output.get("draft_contract_version"),
             "revision_instruction_hash": output.get("revision_instruction_hash"),
             "last_processed_revision_hash": output.get("last_processed_revision_hash"),
             "revision_count": output.get("revision_count"),
@@ -434,6 +448,13 @@ class EnrichAndDraftService:
             "outbound_signal_quality": draft_output.get("outbound_signal_quality"),
             "draft_repair_count": draft_output.get("draft_repair_count"),
             "draft_repair_reason": draft_output.get("draft_repair_reason"),
+            "message_brief": draft_output.get("draft_message_brief"),
+            "raw_selected_evidence_claim": _raw_selected_evidence_claim(
+                draft_output.get("draft_message_brief")
+            ),
+            "supporting_evidence_ids": draft_output.get("draft_supporting_evidence_ids"),
+            "signal_candidates": draft_output.get("signal_candidates"),
+            "draft_contract_version": draft_output.get("draft_contract_version"),
             "enrichment_result": enrichment_dict,
             **{
                 **readiness.as_update(),
@@ -454,3 +475,10 @@ def _parse_enrichment_result(value: Any) -> dict[str, Any]:
             return {}
         return parsed if isinstance(parsed, dict) else {}
     return {}
+
+
+def _raw_selected_evidence_claim(message_brief: Any) -> str | None:
+    if not isinstance(message_brief, dict):
+        return None
+    value = message_brief.get("raw_selected_evidence_claim")
+    return str(value).strip() if value else None

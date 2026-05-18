@@ -19,6 +19,7 @@ def enrichment_sheet_values(result: EnrichmentResult | dict[str, Any]) -> dict[s
         else EnrichmentResult.model_validate(result)
     )
     values = enrichment.model_dump(mode="json")
+    values["enrichment_result_json"] = enrichment.model_dump(mode="json")
     review_required = bool(values.get("review_required"))
     if review_required and values.get("user_decision") != "approve_exception":
         values["recommended_action"] = "needs_manual_research"

@@ -145,6 +145,30 @@ def llm_language_validator_node(llm):
 
 def tone_checker(state: LeadState) -> dict[str, Any]:
     text = _draft_text(state).lower()
+    if not _has_required_greeting(text):
+        return {
+            "status": "needs_revision",
+            "quality_issues": state.get("quality_issues", []) + [
+                "draft must start with a Spanish greeting"
+            ],
+            "agent_note": "Draft needs revision: missing greeting.",
+        }
+    if _looks_like_malformed_company_dot_opener(text):
+        return {
+            "status": "needs_revision",
+            "quality_issues": state.get("quality_issues", []) + [
+                "opener is malformed around a company name with a dot"
+            ],
+            "agent_note": "Draft needs revision: malformed company-name opener.",
+        }
+    if _looks_like_raw_english_signal(text):
+        return {
+            "status": "needs_revision",
+            "quality_issues": state.get("quality_issues", []) + [
+                "opener contains raw untranslated evidence text"
+            ],
+            "agent_note": "Draft needs revision: raw English evidence leaked into the opener.",
+        }
     if "vi que en tu rol" in text or "vi que como coo" in text:
         return {
             "status": "needs_revision",
@@ -225,6 +249,31 @@ def tone_checker(state: LeadState) -> dict[str, Any]:
             "agent_note": "Draft needs revision: generic outbound tone detected.",
         }
     return {"status": "tone_verified"}
+
+
+def _has_required_greeting(text: str) -> bool:
+    return bool(re.match(r"\s*hola(?:\s+[a-zÃ¡Ã©Ã­Ã³ÃºÃ±]+)?,", text))
+
+
+def _looks_like_malformed_company_dot_opener(text: str) -> bool:
+    opener = text[:260]
+    return bool(re.search(r"\b[a-z0-9-]+\.com\s+trabaja\s+trabaja\b", opener))
+
+
+def _looks_like_raw_english_signal(text: str) -> bool:
+    opener = _extract_opener_sentence(text)
+    if not opener:
+        return False
+    markers = (
+        " says ",
+        " says that ",
+        " works with ",
+        " has a ",
+        " has an ",
+        " offers ",
+        " uses ",
+    )
+    return any(marker in opener for marker in markers)
 
 
 def _looks_like_trigger_first_opener(text: str) -> bool:

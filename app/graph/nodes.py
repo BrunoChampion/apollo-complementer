@@ -414,7 +414,7 @@ def _default_nyvex_positioning(solution_fit_type: str | None) -> str:
 def _brief_selected_signal(message_brief: dict[str, object] | None) -> str | None:
     if not isinstance(message_brief, dict):
         return None
-    value = message_brief.get("selected_signal")
+    value = message_brief.get("selected_signal_es") or message_brief.get("selected_signal")
     return str(value).strip() if value else None
 
 
@@ -427,9 +427,22 @@ def _apply_draft_contract(
     signal = _brief_selected_signal(state.get("draft_message_brief")) or state.get(
         "draft_signal_claim"
     )
+    body = _enforce_greeting(body, lead)
     body = _enforce_selected_opener(body, lead, str(signal).strip() if signal else None)
     body = _enforce_soft_cta(body)
     return _limit_words(body, max_words)
+
+
+def _enforce_greeting(body: str, lead: LeadRow) -> str:
+    first_name = (lead.prospect_name or "").split()[0]
+    greeting = f"Hola {first_name}," if first_name else "Hola,"
+    paragraphs = _paragraphs(body)
+    if not paragraphs:
+        return greeting
+    if paragraphs[0].lower().startswith("hola"):
+        paragraphs[0] = greeting
+        return "\n\n".join(paragraphs)
+    return "\n\n".join([greeting, *paragraphs])
 
 
 def _enforce_selected_opener(body: str, lead: LeadRow, selected_signal: str | None) -> str:
@@ -444,14 +457,17 @@ def _enforce_selected_opener(body: str, lead: LeadRow, selected_signal: str | No
     else:
         opener = f"Vi que {company} {signal}."
 
-    pattern = re.compile(r"\bvi que\b[^\n.?!]*(?:[.?!])", flags=re.IGNORECASE)
-    if pattern.search(body):
-        return pattern.sub(opener, body, count=1)
-
-    parts = re.split(r"(\r?\n\r?\n)", body, maxsplit=1)
-    if len(parts) >= 3:
-        return f"{parts[0]}{parts[1]}{opener}{parts[1]}{parts[2].lstrip()}"
-    return f"{opener}\n\n{body}"
+    paragraphs = _paragraphs(body)
+    if not paragraphs:
+        return opener
+    start_index = 1 if paragraphs[0].lower().startswith("hola") else 0
+    for index in range(start_index, len(paragraphs)):
+        if re.search(r"\bvi que\b", paragraphs[index], flags=re.IGNORECASE):
+            paragraphs[index] = opener
+            return "\n\n".join(paragraphs)
+    insert_at = 1 if paragraphs[0].lower().startswith("hola") else 0
+    paragraphs.insert(insert_at, opener)
+    return "\n\n".join(paragraphs)
 
 
 def _enforce_soft_cta(body: str) -> str:
@@ -468,6 +484,14 @@ def _limit_words(text: str, max_words: int) -> str:
     if len(words) <= max_words:
         return text
     return " ".join(words[:max_words])
+
+
+def _paragraphs(body: str) -> list[str]:
+    return [
+        paragraph.strip()
+        for paragraph in re.split(r"\r?\n\s*\r?\n", body.strip())
+        if paragraph.strip()
+    ]
 
 
 def _repair_reason(state: LeadState) -> str:

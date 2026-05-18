@@ -17,6 +17,7 @@ class EnrichmentRunRequest(BaseModel):
     sheet_id: str | None = None
     tab_name: str | None = None
     lead_ids: list[str] | None = None
+    enrichment_ids: list[str] | None = None
     run_id: str = "manual"
     force: bool = False
 
@@ -81,6 +82,7 @@ def run_draft_from_enrichment(
     service = LeadEnrichAndDraftService(sheet_client)
     results = service.draft_leads(
         lead_ids=request.lead_ids,
+        enrichment_ids=request.enrichment_ids,
         run_id=request.run_id,
     )
     return EnrichmentRunResponse(processed_count=len(results), results=results)

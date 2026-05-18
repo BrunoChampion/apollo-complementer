@@ -105,10 +105,28 @@ const EMAIL_DRAFTS_HEADERS = [
   'email_subject',
   'email_draft',
   'draft_status',
+  'review_reason',
   'quality_score',
   'quality_issues',
   'agent_note',
   'enrichment_id',
+  'source_enrichment_id',
+  'source_enrichment_hash',
+  'source_tab',
+  'message_brief',
+  'raw_selected_evidence_claim',
+  'supporting_evidence_ids',
+  'signal_candidates',
+  'draft_contract_version',
+  'selected_signal',
+  'solution_fit_type',
+  'signal_source_quality',
+  'system_worthiness',
+  'why_not_chatgpt_task',
+  'draftability_score',
+  'outbound_signal_quality',
+  'draft_repair_count',
+  'draft_repair_reason',
   'gmail_draft_id',
   'gmail_draft_url',
   'approved',
@@ -222,6 +240,7 @@ const ENRICHMENT_HEADERS = [
   'created_at',
   'finished_at',
   'error_message',
+  'enrichment_result_json',
 ];
 
 function onOpen() {
@@ -397,22 +416,23 @@ function buildEnrichmentPayload_(title, options) {
   const payload = {
     source: 'google_sheets',
     sheet_id: spreadsheet.getId(),
-    tab_name: 'Leads',
+    tab_name: selection.sheetName || 'Leads',
   };
 
   const ui = SpreadsheetApp.getUi();
-  if (options.requireSelection && !selection.leadIds.length) {
+  const selectedCount = selection.leadIds.length || selection.enrichmentIds.length;
+  if (options.requireSelection && !selectedCount) {
     ui.alert(
       title,
-      'Selecciona primero las filas de Leads que quieres procesar. Para evitar timeouts de ngrok/Sheets, no se procesan todos los leads en una sola llamada.',
+      'Selecciona primero las filas que quieres procesar. Para drafts, selecciona filas de Enrichment; para enrichment, selecciona filas de Leads.',
       ui.ButtonSet.OK
     );
     return null;
   }
   if (
     options.maxSelection &&
-    selection.leadIds.length &&
-    selection.leadIds.length > options.maxSelection
+    selectedCount &&
+    selectedCount > options.maxSelection
   ) {
     ui.alert(
       title,
@@ -422,15 +442,23 @@ function buildEnrichmentPayload_(title, options) {
     return null;
   }
 
-  if (selection.leadIds.length) {
+  if (selectedCount) {
+    const selectedLabel = selection.enrichmentIds.length
+      ? `${selection.enrichmentIds.length} enrichment_id(s)`
+      : `${selection.leadIds.length} lead_id(s)`;
     const response = ui.alert(
       title,
-      `Seleccionaste ${selection.leadIds.length} fila(s) en ${selection.sheetName}. Presiona Yes para volver a procesarlas aunque ya tengan resultado. Presiona No para procesarlas solo si estan pendientes.`,
+      `Seleccionaste ${selectedLabel} en ${selection.sheetName}. Presiona Yes para volver a procesarlas aunque ya tengan resultado. Presiona No para procesarlas solo si estan pendientes.`,
       ui.ButtonSet.YES_NO_CANCEL
     );
     if (response === ui.Button.CANCEL) return;
-    payload.lead_ids = selection.leadIds;
-    if (response === ui.Button.YES && selection.leadIds.length > 3) {
+    if (selection.enrichmentIds.length) {
+      payload.enrichment_ids = selection.enrichmentIds;
+    }
+    if (selection.leadIds.length) {
+      payload.lead_ids = selection.leadIds;
+    }
+    if (response === ui.Button.YES && selectedCount > 3) {
       ui.alert('Selecciona maximo 3 filas para reprocesar. Esto ayuda a controlar costo y tiempo.');
       return null;
     }
@@ -469,10 +497,13 @@ function getSelectedLeadIds_() {
 function getSelectedLeadSelection_() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const sheetName = sheet ? sheet.getName() : '';
-  if (!sheet) return { sheetName, leadIds: [] };
+  if (!sheet) return { sheetName, leadIds: [], enrichmentIds: [] };
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const leadIdColumn = headers.indexOf('lead_id') + 1;
-  if (!leadIdColumn) return { sheetName, leadIds: [] };
+  const enrichmentIdColumn = headers.indexOf('enrichment_id') + 1;
+  if (!leadIdColumn && !enrichmentIdColumn) {
+    return { sheetName, leadIds: [], enrichmentIds: [] };
+  }
 
   let ranges = [];
   const rangeList = sheet.getActiveRangeList();
@@ -482,10 +513,12 @@ function getSelectedLeadSelection_() {
     const range = sheet.getActiveRange();
     if (range) ranges = [range];
   }
-  if (!ranges.length) return { sheetName, leadIds: [] };
+  if (!ranges.length) return { sheetName, leadIds: [], enrichmentIds: [] };
 
-  const seen = new Set();
+  const seenLeadIds = new Set();
+  const seenEnrichmentIds = new Set();
   const leadIds = [];
+  const enrichmentIds = [];
   ranges.forEach((range) => {
     const startRow = range.getRow();
     const numRows = range.getNumRows();
@@ -493,19 +526,34 @@ function getSelectedLeadSelection_() {
     const firstDataRow = Math.max(startRow, 2);
     const rowsToRead = numRows - (firstDataRow - startRow);
     if (rowsToRead <= 0) return;
-    const ids = sheet
-      .getRange(firstDataRow, leadIdColumn, rowsToRead, 1)
-      .getValues()
-      .flat()
-      .filter(String);
-    ids.forEach((id) => {
-      const normalized = String(id).trim();
-      if (!normalized || seen.has(normalized)) return;
-      seen.add(normalized);
-      leadIds.push(normalized);
-    });
+    if (leadIdColumn) {
+      const ids = sheet
+        .getRange(firstDataRow, leadIdColumn, rowsToRead, 1)
+        .getValues()
+        .flat()
+        .filter(String);
+      ids.forEach((id) => {
+        const normalized = String(id).trim();
+        if (!normalized || seenLeadIds.has(normalized)) return;
+        seenLeadIds.add(normalized);
+        leadIds.push(normalized);
+      });
+    }
+    if (enrichmentIdColumn && sheetName === 'Enrichment') {
+      const ids = sheet
+        .getRange(firstDataRow, enrichmentIdColumn, rowsToRead, 1)
+        .getValues()
+        .flat()
+        .filter(String);
+      ids.forEach((id) => {
+        const normalized = String(id).trim();
+        if (!normalized || seenEnrichmentIds.has(normalized)) return;
+        seenEnrichmentIds.add(normalized);
+        enrichmentIds.push(normalized);
+      });
+    }
   });
-  return { sheetName, leadIds };
+  return { sheetName, leadIds, enrichmentIds };
 }
 
 function callRevenueCopilotApi(endpoint, payload) {

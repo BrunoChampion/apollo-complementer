@@ -126,6 +126,7 @@ def gate_draft_on_enrichment(state: LeadState) -> dict[str, object]:
         "draftability_score": signal.draftability_score,
         "outbound_signal_quality": signal.outbound_signal_quality,
         "signal_candidates": signal.signal_candidates or [],
+        "draft_contract_version": "nyvex-draft-contract-v2",
     }
 
 

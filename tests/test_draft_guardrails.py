@@ -1,9 +1,11 @@
+from app.domain.leads import LeadRow
 from app.graph.draft_guardrails import (
     language_validator,
     route_after_guardrail_or_repair,
     tone_checker,
     verify_claims_against_evidence,
 )
+from app.graph.nodes import _apply_draft_contract
 
 
 def _state(email_draft: str, country: str = "Mexico") -> dict:
@@ -22,6 +24,29 @@ def _state(email_draft: str, country: str = "Mexico") -> dict:
         ],
         "playbook": {"message_rules": {"avoid_phrases": ["plantilla generica"]}},
     }
+
+
+def test_draft_contract_adds_greeting_and_replaces_dot_company_opener_as_block() -> None:
+    lead = LeadRow(
+        lead_id="lead-rebill",
+        company_name="Rebill.com",
+        prospect_name="Ariel Diaz",
+        country="Argentina",
+    )
+    body = (
+        "Vi que Rebill.com trabaja con instituciones financieras en operaciones digitales.\n\n"
+        "En empresas B2B con ese tipo de operacion suele aparecer una friccion."
+    )
+
+    result = _apply_draft_contract(
+        body,
+        lead,
+        {"draft_message_brief": {"selected_signal_es": "trabaja con pagos y suscripciones"}},
+        max_words=120,
+    )
+
+    assert result.startswith("Hola Ariel,\n\nVi que Rebill.com trabaja con pagos y suscripciones.")
+    assert "Rebill.com trabaja trabaja" not in result
 
 
 def test_verify_claims_detects_unsupported_number() -> None:
@@ -62,6 +87,41 @@ def test_tone_checker_detects_generic() -> None:
 
     assert result["status"] == "needs_revision"
     assert "generic outbound tone" in result["agent_note"]
+
+
+def test_tone_checker_rejects_missing_greeting() -> None:
+    result = tone_checker(
+        _state("Vi que Acme usa HubSpot. Tiene sentido que te las comparta?")
+    )
+
+    assert result["status"] == "needs_revision"
+    assert "missing greeting" in result["agent_note"]
+
+
+def test_tone_checker_rejects_raw_english_opener_signal() -> None:
+    result = tone_checker(
+        _state(
+            "Hola Patricio,\n\n"
+            "Vi que Master Metrics says marketing teams use AI workflows. "
+            "Tiene sentido que te las comparta?"
+        )
+    )
+
+    assert result["status"] == "needs_revision"
+    assert "raw English" in result["agent_note"]
+
+
+def test_tone_checker_rejects_malformed_dot_company_opener() -> None:
+    result = tone_checker(
+        _state(
+            "Hola Ariel,\n\n"
+            "Vi que Rebill.com trabaja trabaja con pagos y suscripciones. "
+            "Tiene sentido que te las comparta?"
+        )
+    )
+
+    assert result["status"] == "needs_revision"
+    assert "malformed" in result["agent_note"]
 
 
 def test_tone_checker_rejects_role_first_opener() -> None:

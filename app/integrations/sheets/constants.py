@@ -123,10 +123,19 @@ EMAIL_DRAFTS_HEADERS = [
     "email_subject",
     "email_draft",
     "draft_status",
+    "review_reason",
     "quality_score",
     "quality_issues",
     "agent_note",
     "enrichment_id",
+    "source_enrichment_id",
+    "source_enrichment_hash",
+    "source_tab",
+    "message_brief",
+    "raw_selected_evidence_claim",
+    "supporting_evidence_ids",
+    "signal_candidates",
+    "draft_contract_version",
     "selected_signal",
     "solution_fit_type",
     "signal_source_quality",
@@ -249,6 +258,7 @@ ENRICHMENT_HEADERS = [
     "created_at",
     "finished_at",
     "error_message",
+    "enrichment_result_json",
 ]
 
 TAB_HEADERS: dict[str, list[str]] = {

@@ -264,10 +264,13 @@ def assess_draft_signal(result: EnrichmentResult) -> DraftSignalAssessment:
         source_quality,
     )
     message_brief = {
+        "selected_signal_es": signal_text,
         "selected_signal": signal_text,
         "raw_selected_evidence_claim": selected.claim,
         "supporting_evidence_ids": [evidence_id],
         "source_quality": source_quality,
+        "signal_category": _signal_type(selected),
+        "signal_confidence": selected.confidence,
         "can_use_as_opener": True,
         "draftability_score": selected_candidate.score if selected_candidate else None,
         "outbound_signal_quality": _outbound_signal_quality(
@@ -280,6 +283,7 @@ def assess_draft_signal(result: EnrichmentResult) -> DraftSignalAssessment:
         "friction_hypothesis": friction,
         "nyvex_positioning": nyvex_positioning,
         "risk_notes": risk_notes,
+        "reject_reason": None,
         "drafting_policy": (
             "Use selected_signal as the opener fact. Do not upgrade it into broader "
             "claims, do not use hiring/funding as the opener, and do not propose "
@@ -533,8 +537,8 @@ def _safe_opener_claim(result: EnrichmentResult | None, signal: EvidenceItem) ->
     if any(marker in text for marker in ("bank", "banco", "cooperativa", "digital banking")):
         if any(marker in text for marker in ("onboarding", "origination", "originacion")):
             return (
-                "trabaja con instituciones financieras en canales digitales, "
-                "onboarding y atencion a clientes"
+                "trabaja con instituciones financieras en canales digitales y "
+                "onboarding de clientes"
             )
         return "trabaja con instituciones financieras en operaciones digitales"
     if any(marker in text for marker in ("conversational ai", "ia conversacional", "whatsapp")):
@@ -549,7 +553,7 @@ def _safe_opener_claim(result: EnrichmentResult | None, signal: EvidenceItem) ->
         )
     if any(marker in text for marker in ("marketplace", "cross-border", "seller", "ecommerce")):
         return (
-            "opera flujos de ecommerce y marketplace cross-border en la region"
+            "opera flujos de ecommerce y marketplace cross-border en Latinoamerica"
         )
     if any(marker in text for marker in ("payment", "pagos", "subscription", "suscrip")):
         return (
@@ -584,10 +588,38 @@ def _safe_opener_claim(result: EnrichmentResult | None, signal: EvidenceItem) ->
     if any(marker in text for marker in ("implementation", "implementacion", "onboarding")):
         return "tiene procesos de implementacion y onboarding para clientes B2B"
 
+    if _raw_claim_looks_unsafe(signal.claim):
+        return ""
+
     return _sentence_safe_trim(
         _clean_claim(signal.claim, result.company_name if result else None),
         130,
     )
+
+
+def _raw_claim_looks_unsafe(claim: str) -> bool:
+    text = f" {claim.strip().lower()} "
+    unsafe_markers = (
+        " says ",
+        " said ",
+        " claims ",
+        " according to ",
+        " appears to ",
+        " is likely ",
+        " owns ",
+        " responsible for ",
+    )
+    if any(marker in text for marker in unsafe_markers):
+        return True
+    english_starts = (
+        "works with ",
+        "has a ",
+        "has an ",
+        "offers ",
+        "uses ",
+        "sells ",
+    )
+    return text.strip().startswith(english_starts) and len(text.split()) > 18
 
 
 def _source_quality(item: EvidenceItem) -> str:
